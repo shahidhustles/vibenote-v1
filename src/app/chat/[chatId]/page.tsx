@@ -9,6 +9,7 @@ import { api } from "../../../../convex/_generated/api";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { useUser } from "@clerk/nextjs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToolsDock } from "./layout";
 
 interface ChatInstancePageProps {
   params: Promise<{
@@ -174,17 +175,57 @@ export default function ChatInstancePage({
     }
   }, [messages, status]);
 
+  // Get ToolsDock reference for whiteboard capture
+  const toolsDock = useToolsDock();
+
+  const handleCaptureWhiteboard = useCallback(async () => {
+    console.log("[ChatPage] handleCaptureWhiteboard called");
+    if (!toolsDock) {
+      console.warn("[ChatPage] ToolsDock not available");
+      return null;
+    }
+    console.log("[ChatPage] Calling toolsDock.captureWhiteboard()");
+    const result = await toolsDock.captureWhiteboard();
+    console.log(
+      "[ChatPage] Capture result:",
+      result ? `${result.length} chars` : "null"
+    );
+    return result;
+  }, [toolsDock]);
+
   const handleSendMessage = (
     content: string,
-    expertModeFlag: boolean = false
+    expertModeFlag: boolean = false,
+    whiteboardSnapshot?: string
   ) => {
-    // Don't send messages while loading existing messages or if user is not loaded
-    if (isLoadingExistingMessages || !user) return;
+    console.log("[ChatPage] handleSendMessage called");
+    console.log("[ChatPage] Message length:", content.length);
+    console.log("[ChatPage] Expert mode:", expertModeFlag);
+    console.log("[ChatPage] Has whiteboard snapshot:", !!whiteboardSnapshot);
 
-    // Send message using v5 API with expert mode flag
+    // Don't send messages while loading existing messages or if user is not loaded
+    if (isLoadingExistingMessages || !user) {
+      console.warn(
+        "[ChatPage] Cannot send - loading messages or user not loaded"
+      );
+      return;
+    }
+
+    if (whiteboardSnapshot) {
+      console.log(
+        "[ChatPage] Whiteboard snapshot length:",
+        whiteboardSnapshot.length
+      );
+    }
+
+    // Send message using v5 API with expert mode flag and optional whiteboard snapshot
+    console.log("[ChatPage] Calling sendMessage with metadata");
     sendMessage({
       text: content,
-      metadata: { expertMode: expertModeFlag },
+      metadata: {
+        expertMode: expertModeFlag,
+        whiteboardSnapshot: whiteboardSnapshot,
+      },
     });
   };
 
@@ -283,7 +324,10 @@ export default function ChatInstancePage({
 
         {/* Chat Input at Bottom */}
         <div className="border-t border-purple-200/50 bg-white/70 backdrop-blur-sm p-4">
-          <ChatInput onSendMessage={handleSendMessage} />
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            onCaptureWhiteboard={handleCaptureWhiteboard}
+          />
         </div>
       </div>
     </div>

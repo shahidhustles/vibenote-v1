@@ -2,8 +2,9 @@
 
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
-import { Whiteboard } from "./Whiteboard";
+import { Whiteboard, WhiteboardRef } from "./Whiteboard";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { forwardRef } from "react";
 
 interface WhiteboardDrawerProps {
   open: boolean;
@@ -12,12 +13,10 @@ interface WhiteboardDrawerProps {
   chatId: string;
 }
 
-export function WhiteboardDrawer({
-  open,
-  onOpenChange,
-  widthClass = "w-3/4 sm:max-w-sm",
-  chatId,
-}: WhiteboardDrawerProps) {
+export const WhiteboardDrawer = forwardRef<
+  WhiteboardRef,
+  WhiteboardDrawerProps
+>(({ open, onOpenChange, widthClass = "w-3/4 sm:max-w-sm", chatId }, ref) => {
   return (
     <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
       <DrawerContent
@@ -34,9 +33,11 @@ export function WhiteboardDrawer({
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
-          <Whiteboard chatId={chatId} />
+          <Whiteboard ref={ref} chatId={chatId} />
         </div>
       </DrawerContent>
     </Drawer>
   );
-}
+});
+
+WhiteboardDrawer.displayName = "WhiteboardDrawer";

@@ -63,6 +63,32 @@ export async function POST(req: Request) {
     const newMessages = messages.filter((msg) => !existingIds.has(msg.id));
     const allMessages = [...existingUIMessages, ...newMessages];
 
+    // Extract whiteboard snapshot from the last message if present
+    let whiteboardImageData: Buffer | undefined;
+
+    if (allMessages.length > 0) {
+      const lastMessage = allMessages[allMessages.length - 1];
+      const metadata = lastMessage.metadata as
+        | { whiteboardSnapshot?: string }
+        | undefined;
+      const whiteboardSnapshot = metadata?.whiteboardSnapshot;
+
+      if (whiteboardSnapshot && lastMessage.role === "user") {
+        // Extract base64 data and convert to Buffer
+        const base64Data = whiteboardSnapshot.replace(
+          /^data:image\/\w+;base64,/,
+          ""
+        );
+        whiteboardImageData = Buffer.from(base64Data, "base64");
+
+        // Add a note about whiteboard in the text
+        const textPart = lastMessage.parts?.find((p) => p.type === "text");
+        if (textPart && textPart.type === "text") {
+          textPart.text = `${textPart.text}\n\n[Note: Whiteboard snapshot included for visual context]`;
+        }
+      }
+    }
+
     // Enhanced system prompt for educational AI chatbot with RAG capabilities
     const systemPrompt = `You are VibeNote, an intelligent educational assistant designed to help students and learners understand complex topics.
 
@@ -74,6 +100,29 @@ Your core capabilities:
 - Adapt your communication style based on the user's understanding
 - Be patient, supportive, and encouraging in your responses
 - Learn and remember user preferences, interests, and information they share
+
+WHITEBOARD VISUAL LEARNING:
+You have access to a powerful whiteboard feature that enables visual learning and problem-solving!
+
+When a user includes a whiteboard snapshot (indicated by "[Note: Whiteboard snapshot included for visual context]"):
+- Carefully analyze the whiteboard image - it may contain diagrams, sketches, drawings, handwritten notes, mathematical expressions, flowcharts, concept maps, or problem statements
+- Interpret handwriting, drawings, and visual representations accurately
+- Reference specific elements from the whiteboard in your response (e.g., "Looking at the diagram you drew in the top-left...")
+- Provide feedback, corrections, or solutions based on what you see
+- Help solve mathematical problems, debug code snippets, explain concepts, or answer questions shown on the whiteboard
+- If something is unclear in the drawing, ask specific clarifying questions
+
+When the whiteboard would be helpful for learning:
+- Suggest: "It might help to draw this out on the whiteboard! Type @ and select Whiteboard to include it."
+- Recommend using the whiteboard for: diagrams, math problems, flowcharts, concept mapping, visual brainstorming, sketching ideas, drawing molecular structures, plotting graphs, etc.
+- Encourage visual thinking and problem-solving through drawing
+
+Examples of whiteboard use cases:
+- Math: "Can you draw the problem on the whiteboard so I can see your work?"
+- Science: "Try sketching the molecular structure on the whiteboard!"
+- Programming: "Draw a flowchart of your algorithm on the whiteboard"
+- Concepts: "Create a mind map on the whiteboard to visualize the connections"
+- Problem-solving: "Sketch out the problem on the whiteboard so we can work through it together"
 
 IMPORTANT - Knowledge Base Guidelines:
 - ALWAYS check your knowledge base before answering questions about the user
@@ -90,13 +139,49 @@ General Guidelines:
 - Offer multiple perspectives when appropriate
 - Encourage questions and deeper exploration of topics
 - Be enthusiastic about learning and knowledge sharing
+- Leverage visual learning through the whiteboard feature when appropriate
 
-Your mission: Make learning accessible, engaging, and effective for everyone while personalizing the experience based on what you learn about each user.`;
+Your mission: Make learning accessible, engaging, and effective for everyone while personalizing the experience based on what you learn about each user. Use both text and visual tools (whiteboard) to create the most effective learning experience.`;
+
+    // Convert messages to model format and manually add image if needed
+    const modelMessages = convertToModelMessages(allMessages);
+
+    // If we have whiteboard image data, rebuild the last message with image
+    if (
+      whiteboardImageData &&
+      modelMessages.length > 0 &&
+      modelMessages[modelMessages.length - 1].role === "user"
+    ) {
+      const lastMessageIndex = modelMessages.length - 1;
+      const lastMessage = modelMessages[lastMessageIndex];
+
+      // Get text content
+      let textContent = "";
+      if (typeof lastMessage.content === "string") {
+        textContent = lastMessage.content;
+      } else if (Array.isArray(lastMessage.content)) {
+        textContent = lastMessage.content
+          .filter((p) => p.type === "text")
+          .map((p) => ("text" in p ? p.text : ""))
+          .join(" ");
+      }
+
+      // Rebuild message with both text and image
+      // Type assertion needed because image type isn't in the standard CoreMessage types
+      // but is supported by the Google provider
+      modelMessages[lastMessageIndex] = {
+        role: "user",
+        content: [
+          { type: "text", text: textContent },
+          { type: "image", image: whiteboardImageData },
+        ],
+      } as (typeof modelMessages)[number];
+    }
 
     const result = streamText({
       model: google("gemini-2.5-flash"),
       system: systemPrompt,
-      messages: convertToModelMessages(allMessages),
+      messages: modelMessages,
       temperature: 0.7,
       stopWhen: stepCountIs(5),
       tools: {
