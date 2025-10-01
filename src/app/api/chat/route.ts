@@ -4,11 +4,16 @@ import {
   streamText,
   UIMessage,
   generateText,
+  tool,
+  stepCountIs,
 } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import { nanoid } from "nanoid";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
+import { z } from "zod";
+import { createResource } from "@/lib/actions/resources";
+import { findRelevantContent } from "@/lib/ai/embedding";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -58,7 +63,7 @@ export async function POST(req: Request) {
     const newMessages = messages.filter((msg) => !existingIds.has(msg.id));
     const allMessages = [...existingUIMessages, ...newMessages];
 
-    // Enhanced system prompt for educational AI chatbot
+    // Enhanced system prompt for educational AI chatbot with RAG capabilities
     const systemPrompt = `You are VibeNote, an intelligent educational assistant designed to help students and learners understand complex topics.
 
 Your core capabilities:
@@ -68,8 +73,17 @@ Your core capabilities:
 - Encourage critical thinking through thoughtful questions
 - Adapt your communication style based on the user's understanding
 - Be patient, supportive, and encouraging in your responses
+- Learn and remember user preferences, interests, and information they share
 
-Guidelines:
+IMPORTANT - Knowledge Base Guidelines:
+- ALWAYS check your knowledge base before answering questions about the user
+- Use the getInformation tool to search for relevant information before responding
+- If the user shares personal information, preferences, or facts about themselves, use the addResource tool to remember it
+- Only respond to personal questions using information from tool calls
+- If no relevant information is found in the tool calls for personal queries, respond: "I don't have that information about you yet. Would you like to tell me?"
+- For general educational questions, you can use your training knowledge along with any relevant user context from the knowledge base
+
+General Guidelines:
 - Always prioritize clarity and accuracy in your explanations
 - Use simple language unless technical terms are necessary
 - Provide step-by-step breakdowns for complex processes
@@ -77,13 +91,33 @@ Guidelines:
 - Encourage questions and deeper exploration of topics
 - Be enthusiastic about learning and knowledge sharing
 
-Your mission: Make learning accessible, engaging, and effective for everyone.`;
+Your mission: Make learning accessible, engaging, and effective for everyone while personalizing the experience based on what you learn about each user.`;
 
     const result = streamText({
-      model: google("gemini-2.0-flash-exp"),
+      model: google("gemini-2.5-flash"),
       system: systemPrompt,
       messages: convertToModelMessages(allMessages),
       temperature: 0.7,
+      stopWhen: stepCountIs(5),
+      tools: {
+        addResource: tool({
+          description: `Add a resource to the user's personal knowledge base. Use this when the user shares information about themselves, their preferences, interests, goals, or any personal facts they want you to remember. If the user provides information unprompted, use this tool without asking for confirmation.`,
+          inputSchema: z.object({
+            content: z
+              .string()
+              .describe("the content or resource to add to the knowledge base"),
+          }),
+          execute: async ({ content }) => createResource({ content, userId }),
+        }),
+        getInformation: tool({
+          description: `Search the user's personal knowledge base to find relevant information to answer their questions. Use this before answering questions about the user's preferences, history, or personal information.`,
+          inputSchema: z.object({
+            question: z.string().describe("the user's question"),
+          }),
+          execute: async ({ question }) =>
+            findRelevantContent(question, userId),
+        }),
+      },
 
       onFinish: async (result) => {
         // Determine if it's the first message for this chat

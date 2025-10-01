@@ -8,6 +8,7 @@ import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { User, Bot } from "lucide-react";
 import type { UIMessage } from "ai";
 import Image from "next/image";
+import ShiningText from "@/components/ui/shining-text";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -148,7 +149,23 @@ export function MessageBubble({
                 </div>
               );
 
-            // Handle tool calls (future use)
+            // Handle addResource tool calls
+            case "tool-addResource":
+              return (
+                <div key={index} className="mb-3">
+                  {renderToolCall(part, "addResource")}
+                </div>
+              );
+
+            // Handle getInformation tool calls
+            case "tool-getInformation":
+              return (
+                <div key={index} className="mb-3">
+                  {renderToolCall(part, "getInformation")}
+                </div>
+              );
+
+            // Handle other tool calls
             default:
               return null;
           }
@@ -185,4 +202,127 @@ export function MessageBubble({
       )}
     </div>
   );
+}
+
+// Helper function to render tool calls based on their state
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderToolCall(part: any, toolName: string) {
+  const toolCallId = part.toolCallId;
+
+  // Render based on tool type
+  if (toolName === "addResource") {
+    switch (part.state) {
+      case "input-streaming":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(147, 51, 234, 0.7)"
+              className="text-md font-medium"
+            >
+              Preparing to save information...
+            </ShiningText>
+          </div>
+        );
+      case "input-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(147, 51, 234, 0.7)"
+              className="text-md font-medium"
+            >
+              Saving: &ldquo;
+              {part.input?.content?.substring(0, 50) || "information"}
+              {part.input?.content?.length > 50 ? "..." : ""}
+              &rdquo;
+            </ShiningText>
+          </div>
+        );
+      case "output-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(147, 51, 234, 0.7)"
+              className="text-md font-medium"
+            >
+              Information saved to your knowledge base
+            </ShiningText>
+          </div>
+        );
+      case "output-error":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(239, 68, 68, 0.7)"
+              className="text-md font-medium"
+            >
+              Error: {part.errorText || "Failed to save information"}
+            </ShiningText>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
+  if (toolName === "getInformation") {
+    switch (part.state) {
+      case "input-streaming":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(59, 130, 246, 0.7)"
+              className="text-md font-medium"
+            >
+              Preparing to search knowledge base...
+            </ShiningText>
+          </div>
+        );
+      case "input-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(59, 130, 246, 0.7)"
+              className="text-md font-medium"
+            >
+              Searching for: &ldquo;{part.input?.question || "information"}
+              &rdquo;...
+            </ShiningText>
+          </div>
+        );
+      case "output-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(59, 130, 246, 0.7)"
+              className="text-md font-medium"
+            >
+              Found relevant information in knowledge base
+            </ShiningText>
+          </div>
+        );
+      case "output-error":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(239, 68, 68, 0.7)"
+              className="text-md font-medium"
+            >
+              Error: {part.errorText || "Failed to search knowledge base"}
+            </ShiningText>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
+  return null;
 }
