@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "floatchat Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/shahidhustles/floatchat"
+    }
+  }
+}
