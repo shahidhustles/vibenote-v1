@@ -74,6 +74,12 @@ export default function ChatInstancePage({
         };
       },
     }),
+    onFinish: () => {
+      // Clear search params after the first message is finished
+      if (unwrappedSearchParams.initialMessage && initialMessageSent.current) {
+        window.history.replaceState({}, "", `/chat/${chatId}`);
+      }
+    },
   });
 
   // Load existing messages into the chat when they're available
