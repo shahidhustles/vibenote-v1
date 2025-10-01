@@ -17,11 +17,12 @@ import { cn } from "@/lib/utils";
 
 interface ToolsDockProps {
   position?: "bottom" | "right";
+  chatId: string;
 }
 
 type DrawerType = "whiteboard" | "quiz" | "flashcards" | null;
 
-export function ToolsDock({ position = "right" }: ToolsDockProps) {
+export function ToolsDock({ position = "right", chatId }: ToolsDockProps) {
   const [openDrawer, setOpenDrawer] = useState<DrawerType>(null);
 
   const handleDockClick = (type: DrawerType) => {
@@ -205,6 +206,7 @@ export function ToolsDock({ position = "right" }: ToolsDockProps) {
         open={openDrawer === "whiteboard"}
         onOpenChange={(open) => !open && setOpenDrawer(null)}
         widthClass="w-1/4 min-w-[600px]"
+        chatId={chatId}
       />
       <QuizDrawer
         open={openDrawer === "quiz"}
