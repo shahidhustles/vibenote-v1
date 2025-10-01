@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Presentation, Brain, Layers } from "lucide-react";
 import { WhiteboardDrawer } from "./WhiteboardDrawer";
 import { QuizDrawer } from "./QuizDrawer";
 import { FlashcardsDrawer } from "./FlashcardsDrawer";
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+  AnimatePresence,
+  MotionValue,
+} from "motion/react";
+import { cn } from "@/lib/utils";
 
 interface ToolsDockProps {
   position?: "bottom" | "right";
@@ -37,34 +46,158 @@ export function ToolsDock({ position = "right" }: ToolsDockProps) {
     },
   ];
 
-  const DockButtons = () => (
-    <div
-      className={`flex gap-4 ${
-        position === "bottom" ? "flex-row" : "flex-col"
-      }`}
-    >
-      {dockItems.map((item) => (
-        <button
-          key={item.title}
-          onClick={item.onClick}
-          className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-purple-100 via-blue-100 to-cyan-100 hover:from-purple-200 hover:via-blue-200 hover:to-cyan-200 border border-purple-200 transition-all duration-200 hover:scale-110"
-          title={item.title}
-        >
-          <div className="h-6 w-6">{item.icon}</div>
+  const DockButtons = () => {
+    const mouseY = useMotionValue(Infinity);
+    const mouseX = useMotionValue(Infinity);
 
-          {/* Tooltip */}
-          <span
-            className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 backdrop-blur-sm border border-purple-200 px-2 py-1 rounded-md text-xs whitespace-nowrap text-gray-900 pointer-events-none
-            data-[position=bottom]:top-full data-[position=bottom]:mt-2
-            data-[position=right]:-left-2 data-[position=right]:translate-x-[-100%]"
-            data-position={position}
-          >
-            {item.title}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
+    return (
+      <motion.div
+        onMouseMove={(e) => {
+          if (position === "bottom") {
+            mouseX.set(e.pageX);
+          } else {
+            mouseY.set(e.pageY);
+          }
+        }}
+        onMouseLeave={() => {
+          mouseX.set(Infinity);
+          mouseY.set(Infinity);
+        }}
+        className={cn(
+          "flex gap-4",
+          position === "bottom" ? "flex-row" : "flex-col"
+        )}
+      >
+        {dockItems.map((item) => (
+          <DockIcon
+            key={item.title}
+            mouseX={mouseX}
+            mouseY={mouseY}
+            position={position}
+            {...item}
+          />
+        ))}
+      </motion.div>
+    );
+  };
+
+  const DockIcon = ({
+    mouseX,
+    mouseY,
+    title,
+    icon,
+    onClick,
+    position,
+  }: {
+    mouseX: MotionValue;
+    mouseY: MotionValue;
+    title: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    position: "bottom" | "right";
+  }) => {
+    const ref = useRef<HTMLButtonElement>(null);
+    const [hovered, setHovered] = useState(false);
+
+    const distance = useTransform(
+      position === "bottom" ? mouseX : mouseY,
+      (val) => {
+        const bounds = ref.current?.getBoundingClientRect() ?? {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+        };
+        const center =
+          position === "bottom"
+            ? bounds.x + bounds.width / 2
+            : bounds.y + bounds.height / 2;
+        return val - center;
+      }
+    );
+
+    const widthTransform = useTransform(distance, [-150, 0, 150], [40, 80, 40]);
+    const heightTransform = useTransform(
+      distance,
+      [-150, 0, 150],
+      [40, 80, 40]
+    );
+
+    const width = useSpring(widthTransform, {
+      mass: 0.1,
+      stiffness: 150,
+      damping: 12,
+    });
+    const height = useSpring(heightTransform, {
+      mass: 0.1,
+      stiffness: 150,
+      damping: 12,
+    });
+
+    return (
+      <motion.button
+        ref={ref}
+        style={{ width, height }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={onClick}
+        className="relative flex aspect-square items-center justify-center rounded-full bg-gradient-to-br from-purple-100 via-blue-100 to-cyan-100 hover:from-purple-200 hover:via-blue-200 hover:to-cyan-200 border border-purple-200"
+      >
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: position === "bottom" ? 10 : 0,
+                x: position === "right" ? 10 : "-50%",
+              }}
+              animate={{
+                opacity: 1,
+                y: position === "bottom" ? 0 : 0,
+                x: position === "bottom" ? "-50%" : 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: position === "bottom" ? 2 : 0,
+                x: position === "bottom" ? "-50%" : 2,
+              }}
+              className={cn(
+                "absolute whitespace-nowrap rounded-md border border-purple-200 bg-white/90 backdrop-blur-sm px-2 py-0.5 text-xs text-gray-900",
+                position === "bottom"
+                  ? "-top-8 left-1/2"
+                  : "right-full mr-2 top-1/2 -translate-y-1/2"
+              )}
+            >
+              {title}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.div
+          style={{
+            width: useSpring(
+              useTransform(distance, [-150, 0, 150], [20, 40, 20]),
+              {
+                mass: 0.1,
+                stiffness: 150,
+                damping: 12,
+              }
+            ),
+            height: useSpring(
+              useTransform(distance, [-150, 0, 150], [20, 40, 20]),
+              {
+                mass: 0.1,
+                stiffness: 150,
+                damping: 12,
+              }
+            ),
+          }}
+          className="flex items-center justify-center"
+        >
+          {icon}
+        </motion.div>
+      </motion.button>
+    );
+  };
 
   const renderDrawers = () => (
     <>

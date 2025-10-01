@@ -9,6 +9,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface FlashcardsDrawerProps {
   open: boolean;
@@ -23,7 +24,9 @@ export function FlashcardsDrawer({
 }: FlashcardsDrawerProps) {
   return (
     <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className={widthClass}>
+      <DrawerContent
+        className={cn("data-[vaul-drawer-direction=right]:w-auto", widthClass)}
+      >
         <DrawerHeader className="flex flex-row items-center justify-between">
           <DrawerTitle className="text-2xl font-bold text-cyan-600">
             Flashcards Page
