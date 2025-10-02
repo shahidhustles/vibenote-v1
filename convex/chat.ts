@@ -263,6 +263,17 @@ export const getRetrievalsByChatId = query({
   },
 });
 
+export const getChatMessages = query({
+  args: { chatId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("messages")
+      .withIndex("by_chatId", (q) => q.eq("chatId", args.chatId))
+      .order("asc")
+      .collect();
+  },
+});
+
 export const deleteChat = mutation({
   args: {
     chatId: v.string(),
