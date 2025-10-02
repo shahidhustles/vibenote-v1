@@ -14,6 +14,12 @@ import { api } from "../../../../convex/_generated/api";
 import { z } from "zod";
 import { createResource } from "@/lib/actions/resources";
 import { findRelevantContent } from "@/lib/ai/embedding";
+import {
+  queryAryabhatta,
+  solveWithAryabhatta,
+  explainWithAryabhatta,
+  determineAryabhattaEndpoint,
+} from "@/actions/use-aryabhatta";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -26,8 +32,15 @@ export async function POST(req: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { messages, chatId }: { messages: UIMessage[]; chatId?: string } =
-      await req.json();
+    const {
+      messages,
+      chatId,
+      aryabhattaMode,
+    }: {
+      messages: UIMessage[];
+      chatId?: string;
+      aryabhattaMode?: boolean;
+    } = await req.json();
 
     // Initialize Convex client
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -90,7 +103,7 @@ export async function POST(req: Request) {
     }
 
     // Enhanced system prompt for educational AI chatbot with RAG capabilities
-    const systemPrompt = `You are VibeNote, an intelligent educational assistant designed to help students and learners understand complex topics.
+    let systemPrompt = `You are VibeNote, an intelligent educational assistant designed to help students and learners understand complex topics.
 
 Your core capabilities:
 - Provide clear, well-structured explanations tailored to the user's level
@@ -142,6 +155,43 @@ General Guidelines:
 - Leverage visual learning through the whiteboard feature when appropriate
 
 Your mission: Make learning accessible, engaging, and effective for everyone while personalizing the experience based on what you learn about each user. Use both text and visual tools (whiteboard) to create the most effective learning experience.`;
+
+    // Add Aryabhatta mode instructions if enabled
+    if (aryabhattaMode) {
+      systemPrompt += `
+
+🔬 ARYABHATTA MODE ACTIVE 🔬
+
+You now have access to Aryabhatta, a specialized AI model expert in mathematics and physics! When users ask questions about mathematical concepts, physics problems, or scientific calculations:
+
+MANDATORY TOOL USAGE:
+- For mathematical problems, physics calculations, or scientific queries, you MUST use the consultAryabhatta tool
+- Call this tool ONLY ONCE per user message - do not make multiple calls
+- Always call this tool BEFORE providing your own mathematical or physics response
+- Use Aryabhatta's expertise as the foundation for your answer
+- Combine Aryabhatta's technical analysis with your educational guidance and user's knowledge base
+
+WHEN TO USE ARYABHATTA:
+✅ Mathematical problems and calculations
+✅ Physics concepts and problem-solving
+✅ Scientific equations and derivations
+✅ Complex mathematical proofs
+✅ Mathematical theory explanations
+✅ Physics phenomenon explanations
+✅ Engineering calculations
+✅ Chemistry calculations involving mathematical concepts
+
+WORKFLOW:
+1. When you receive a math/physics question, call consultAryabhatta ONCE with the complete query
+2. Wait for Aryabhatta's response and use it as your technical foundation
+3. Enhance the response with your educational capabilities
+4. Check user's knowledge base for relevant context if needed
+5. Provide a comprehensive, learning-focused response
+
+IMPORTANT: Only call consultAryabhatta ONE TIME per user message. Do not make multiple tool calls to Aryabhatta in a single response.
+
+Remember: Aryabhatta provides the mathematical/physics expertise, while you provide the educational support, personalization, and learning enhancement!`;
+    }
 
     // Convert messages to model format and manually add image if needed
     const modelMessages = convertToModelMessages(allMessages);
@@ -202,6 +252,61 @@ Your mission: Make learning accessible, engaging, and effective for everyone whi
           execute: async ({ question }) =>
             findRelevantContent(question, userId),
         }),
+        ...(aryabhattaMode
+          ? {
+              consultAryabhatta: tool({
+                description: `Consult Aryabhatta, the specialized mathematical and physics AI model, for expert analysis and solutions. Use this tool when users ask mathematical questions, physics problems, or scientific calculations. Aryabhatta provides detailed, step-by-step solutions and explanations.`,
+                inputSchema: z.object({
+                  query: z
+                    .string()
+                    .describe(
+                      "The mathematical, physics, or scientific question to send to Aryabhatta"
+                    ),
+                  type: z
+                    .enum(["solve", "explain", "query"])
+                    .optional()
+                    .describe(
+                      "Type of query: 'solve' for problems, 'explain' for concepts, 'query' for general questions"
+                    ),
+                }),
+                execute: async ({ query, type }) => {
+                  try {
+                    const endpointType =
+                      type || determineAryabhattaEndpoint(query);
+
+                    const request = {
+                      prompt: query,
+                      max_tokens: 600,
+                      temperature: 0.3,
+                    };
+
+                    let response;
+                    switch (endpointType) {
+                      case "solve":
+                        response = await solveWithAryabhatta(request);
+                        break;
+                      case "explain":
+                        response = await explainWithAryabhatta(request);
+                        break;
+                      default:
+                        response = await queryAryabhatta(request);
+                    }
+
+                    return {
+                      response: response.response,
+                      type: endpointType,
+                      status: response.status,
+                    };
+                  } catch (error) {
+                    return {
+                      error: `Failed to consult Aryabhatta: ${error instanceof Error ? error.message : "Unknown error"}`,
+                      status: "error",
+                    };
+                  }
+                },
+              }),
+            }
+          : {}),
       },
 
       onFinish: async (result) => {

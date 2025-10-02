@@ -1,14 +1,29 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { User, Bot } from "lucide-react";
+import { User, Bot, ChevronDown, ChevronUp } from "lucide-react";
 import type { UIMessage } from "ai";
 import Image from "next/image";
 import ShiningText from "@/components/ui/shining-text";
+
+// Helper function to convert LaTeX delimiters to remark-math format
+function preprocessMath(text: string): string {
+  return (
+    text
+      // Convert \( ... \) to $ ... $
+      .replace(/\\\(/g, "$")
+      .replace(/\\\)/g, "$")
+      // Convert \[ ... \] to $$ ... $$
+      .replace(/\\\[/g, "$$")
+      .replace(/\\\]/g, "$$")
+  );
+}
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -53,7 +68,8 @@ export function MessageBubble({
                   ) : part.text.length > 0 ? (
                     <div className="prose prose-sm max-w-none">
                       <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
                         components={{
                           code({ className, children, ...props }) {
                             const match = /language-(\w+)/.exec(
@@ -142,7 +158,7 @@ export function MessageBubble({
                           ),
                         }}
                       >
-                        {part.text}
+                        {preprocessMath(part.text)}
                       </ReactMarkdown>
                     </div>
                   ) : null}
@@ -162,6 +178,14 @@ export function MessageBubble({
               return (
                 <div key={index} className="mb-3">
                   {renderToolCall(part, "getInformation")}
+                </div>
+              );
+
+            // Handle consultAryabhatta tool calls
+            case "tool-consultAryabhatta":
+              return (
+                <div key={index} className="mb-3">
+                  {renderToolCall(part, "consultAryabhatta")}
                 </div>
               );
 
@@ -324,5 +348,174 @@ function renderToolCall(part: any, toolName: string) {
     }
   }
 
+  if (toolName === "consultAryabhatta") {
+    switch (part.state) {
+      case "input-streaming":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(16, 185, 129, 0.7)"
+              className="text-md font-medium"
+            >
+              Consulting Aryabhatta
+            </ShiningText>
+          </div>
+        );
+      case "input-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(16, 185, 129, 0.7)"
+              className="text-md font-medium"
+            >
+              Analyzing: &ldquo;
+              {part.input?.query?.substring(0, 50) || "mathematical query"}
+              {part.input?.query?.length > 50 ? "..." : ""}
+              &rdquo;
+            </ShiningText>
+          </div>
+        );
+      case "output-available":
+        return <AryabhattaOutputDisplay key={toolCallId} part={part} />;
+      case "output-error":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(239, 68, 68, 0.7)"
+              className="text-md font-medium"
+            >
+              🔬 Error: {part.errorText || "Failed to consult Aryabhatta"}
+            </ShiningText>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
   return null;
+}
+
+// Special component for Aryabhatta output with dropdown
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function AryabhattaOutputDisplay({ part }: { part: any }) {
+  const [showRawResponse, setShowRawResponse] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      {/* Main status with shining text */}
+      <div className="text-md">
+        <ShiningText
+          duration="2s"
+          textColor="rgba(16, 185, 129, 0.7)"
+          className="text-md font-medium"
+        >
+          Aryabhatta analysis complete
+        </ShiningText>
+      </div>
+
+      {/* Dropdown toggle */}
+      <button
+        onClick={() => setShowRawResponse(!showRawResponse)}
+        className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 transition-colors"
+      >
+        {showRawResponse ? (
+          <ChevronUp className="w-4 h-4" />
+        ) : (
+          <ChevronDown className="w-4 h-4" />
+        )}
+        View raw Aryabhatta response
+      </button>
+
+      {/* Collapsible raw response */}
+      {showRawResponse && (
+        <div className="mt-2 p-3 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg">
+          <div className="prose prose-sm max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  return match ? (
+                    <SyntaxHighlighter
+                      style={tomorrow}
+                      language={match[1]}
+                      PreTag="div"
+                      className="rounded-md"
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <code
+                      className="bg-gray-200 px-1 py-0.5 rounded text-sm"
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  );
+                },
+                p: ({ children }) => (
+                  <p className="mb-2 text-gray-700 leading-relaxed">
+                    {children}
+                  </p>
+                ),
+                h1: ({ children }) => (
+                  <h1 className="text-lg font-bold mb-2 text-gray-800">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-md font-semibold mb-2 text-gray-700">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-sm font-semibold mb-1 text-gray-600">
+                    {children}
+                  </h3>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside mb-2 space-y-1">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside mb-2 space-y-1">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => (
+                  <li className="text-gray-700">{children}</li>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-gray-800">
+                    {children}
+                  </strong>
+                ),
+                em: ({ children }) => (
+                  <em className="italic text-gray-600">{children}</em>
+                ),
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-gray-400 pl-4 italic text-gray-600 mb-2">
+                    {children}
+                  </blockquote>
+                ),
+              }}
+            >
+              {preprocessMath(part.output?.response || "No response available")}
+            </ReactMarkdown>
+          </div>
+          {part.output?.error && (
+            <div className="mt-2 text-xs text-red-600">
+              Error: {part.output.error}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

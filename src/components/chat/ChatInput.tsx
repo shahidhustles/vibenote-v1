@@ -2,17 +2,18 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Zap } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 
 interface ChatInputProps {
   onSendMessage?: (
     message: string,
-    expertMode?: boolean,
+    aryabhattaMode?: boolean,
     whiteboardSnapshot?: string
   ) => void;
   isMainPage?: boolean;
-  onExpertMode?: () => void;
+  onAryabhattaMode?: () => void;
   onCaptureWhiteboard?: () => Promise<string | null>;
 }
 
@@ -26,11 +27,11 @@ interface ContextMenuItem {
 export function ChatInput({
   onSendMessage,
   isMainPage = false,
-  onExpertMode,
+  onAryabhattaMode,
   onCaptureWhiteboard,
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
-  const [expertMode, setExpertMode] = useState(false);
+  const [aryabhattaMode, setAryabhattaMode] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({
     x: 0,
@@ -107,19 +108,18 @@ export function ChatInput({
     // Remove @Whiteboard tag from message before sending
     const cleanMessage = message.replace(/@Whiteboard\s*/g, "").trim();
 
-    // Pass message, expert mode, and optional whiteboard snapshot
+    // Pass message, aryabhatta mode, and optional whiteboard snapshot
     console.log(
       "[ChatInput] Sending message with snapshot:",
       !!whiteboardSnapshot
     );
-    onSendMessage(cleanMessage, expertMode, whiteboardSnapshot || undefined);
+    onSendMessage(
+      cleanMessage,
+      aryabhattaMode,
+      whiteboardSnapshot || undefined
+    );
     setMessage("");
     setWhiteboardAttached(false);
-  };
-
-  const toggleExpertMode = () => {
-    setExpertMode(!expertMode);
-    onExpertMode?.();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -273,7 +273,7 @@ export function ChatInput({
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="Ask about educational content, learning concepts, knowledge management... (Type @ for context)"
-              className={`w-full bg-transparent text-gray-900 p-4 pr-12 resize-none border-0 outline-none max-h-32 relative ${
+              className={`w-full bg-transparent text-gray-900 p-4 pr-12 resize-none border-0 outline-none max-h-32 relative scrollbar-hide ${
                 isMainPage ? "min-h-[96px]" : "min-h-[32px]"
               }`}
               style={
@@ -305,22 +305,23 @@ export function ChatInput({
             )}
           </div>
 
-          {/* Expert Mode Button */}
-          <div className="p-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={expertMode ? "default" : "outline"}
-              onClick={toggleExpertMode}
-              className={`rounded-lg p-2 transition-all duration-200 mr-2 ${
-                expertMode
-                  ? "bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-400 hover:from-purple-600 hover:via-blue-600 hover:to-cyan-500 text-white shadow-md"
-                  : "border-purple-400 text-purple-600 hover:bg-purple-50 hover:border-purple-500"
-              }`}
-              title="Toggle Expert Mode - Enhanced AI analysis for complex topics"
+          {/* Aryabhatta Mode Toggle */}
+          <div className="flex items-center space-x-2 p-2 mb-2 mr-2">
+            <Switch
+              id="aryabhatta-mode"
+              checked={aryabhattaMode}
+              onCheckedChange={(checked) => {
+                setAryabhattaMode(checked);
+                onAryabhattaMode?.();
+              }}
+              className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500 data-[state=checked]:to-blue-500"
+            />
+            <label
+              htmlFor="aryabhatta-mode"
+              className="text-sm font-medium text-slate-700 cursor-pointer select-none"
             >
-              <Zap className="w-4 h-4" />
-            </Button>
+              Aryabhatta Mode
+            </label>
           </div>
 
           {/* Send Button */}
@@ -338,10 +339,10 @@ export function ChatInput({
 
         {/* Bottom Helper Text */}
         <div className="text-xs mt-2 text-center drop-shadow-sm">
-          {expertMode ? (
+          {aryabhattaMode ? (
             <span className="text-slate-700 font-medium">
-              Expert Mode Active - Enhanced AI analysis for complex educational
-              topics and advanced learning
+              Aryabhatta Mode Active - Enhanced mathematical and physics
+              analysis using specialized AI models
             </span>
           ) : (
             <span className="text-slate-700">

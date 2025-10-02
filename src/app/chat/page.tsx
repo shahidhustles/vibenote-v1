@@ -39,7 +39,7 @@ export default function ChatPage() {
 
   const handleSendMessage = async (
     message: string,
-    expertMode: boolean = false
+    aryabhattaMode: boolean = false
   ) => {
     if (!user) return;
 
@@ -49,9 +49,9 @@ export default function ChatPage() {
 
       // Redirect with the generated chat ID and initial message
       const encodedMessage = encodeURIComponent(message);
-      const expertModeParam = expertMode ? "&expertMode=true" : "";
+      const aryabhattaModeParam = aryabhattaMode ? "&aryabhattaMode=true" : "";
       router.push(
-        `/chat/${chatId}?initialMessage=${encodedMessage}${expertModeParam}`
+        `/chat/${chatId}?initialMessage=${encodedMessage}${aryabhattaModeParam}`
       );
     } catch (error) {
       console.error("Failed to navigate to chat:", error);

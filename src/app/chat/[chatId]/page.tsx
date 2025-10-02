@@ -17,7 +17,7 @@ interface ChatInstancePageProps {
   }>;
   searchParams: Promise<{
     initialMessage?: string;
-    expertMode?: string;
+    aryabhattaMode?: string;
   }>;
 }
 
@@ -33,8 +33,8 @@ export default function ChatInstancePage({
   // Get current user from Clerk
   const { user } = useUser();
 
-  // Expert mode state
-  const [expertMode, setExpertMode] = useState(false);
+  // Aryabhatta mode state
+  const [aryabhattaMode, setAryabhattaMode] = useState(false);
 
   // Load existing messages from database
   const existingMessages = useQuery(
@@ -59,17 +59,17 @@ export default function ChatInstancePage({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       prepareSendMessagesRequest: ({ messages, body }) => {
-        // Extract expert mode from the last message's metadata
+        // Extract aryabhatta mode from the last message's metadata
         const lastMessage = messages[messages.length - 1];
-        const expertModeFromMessage =
-          (lastMessage?.metadata as { expertMode?: boolean })?.expertMode ||
-          false;
+        const aryabhattaModeFromMessage =
+          (lastMessage?.metadata as { aryabhattaMode?: boolean })
+            ?.aryabhattaMode || false;
 
         return {
           body: {
             chatId: chatId, // Always pass the chatId from URL
             messages,
-            expertMode: expertModeFromMessage, // Pass expert mode flag
+            aryabhattaMode: aryabhattaModeFromMessage, // Pass aryabhatta mode flag
             ...body,
           },
         };
@@ -101,12 +101,12 @@ export default function ChatInstancePage({
     }
   }, [existingMessages, setMessages]);
 
-  // Set expert mode from URL parameter
+  // Set aryabhatta mode from URL parameter
   useEffect(() => {
-    if (unwrappedSearchParams.expertMode === "true") {
-      setExpertMode(true);
+    if (unwrappedSearchParams.aryabhattaMode === "true") {
+      setAryabhattaMode(true);
     }
-  }, [unwrappedSearchParams.expertMode]);
+  }, [unwrappedSearchParams.aryabhattaMode]);
 
   // Handle initial message from search params
   const handleInitialMessage = useCallback(() => {
@@ -122,7 +122,7 @@ export default function ChatInstancePage({
       // Send the initial message immediately
       sendMessage({
         text: initialMsg,
-        metadata: { expertMode: expertMode }, // Use expert mode from state
+        metadata: { aryabhattaMode: aryabhattaMode }, // Use aryabhatta mode from state
       });
       initialMessageSent.current = true;
     }
@@ -130,7 +130,7 @@ export default function ChatInstancePage({
     unwrappedSearchParams.initialMessage,
     messages.length,
     sendMessage,
-    expertMode,
+    aryabhattaMode,
   ]);
 
   // For new chats with initial message, send it immediately without waiting
@@ -147,7 +147,7 @@ export default function ChatInstancePage({
       );
       sendMessage({
         text: initialMsg,
-        metadata: { expertMode: expertMode }, // Use expert mode from state
+        metadata: { aryabhattaMode: aryabhattaMode }, // Use aryabhatta mode from state
       });
       initialMessageSent.current = true;
       existingMessagesLoaded.current = true; // Mark as loaded since it's a new chat
@@ -157,7 +157,7 @@ export default function ChatInstancePage({
     messages.length,
     sendMessage,
     existingMessages,
-    expertMode,
+    aryabhattaMode,
     user,
   ]);
 
@@ -195,12 +195,12 @@ export default function ChatInstancePage({
 
   const handleSendMessage = (
     content: string,
-    expertModeFlag: boolean = false,
+    aryabhattaModeFlag: boolean = false,
     whiteboardSnapshot?: string
   ) => {
     console.log("[ChatPage] handleSendMessage called");
     console.log("[ChatPage] Message length:", content.length);
-    console.log("[ChatPage] Expert mode:", expertModeFlag);
+    console.log("[ChatPage] Aryabhatta mode:", aryabhattaModeFlag);
     console.log("[ChatPage] Has whiteboard snapshot:", !!whiteboardSnapshot);
 
     // Don't send messages while loading existing messages or if user is not loaded
@@ -218,12 +218,12 @@ export default function ChatInstancePage({
       );
     }
 
-    // Send message using v5 API with expert mode flag and optional whiteboard snapshot
+    // Send message using v5 API with aryabhatta mode flag and optional whiteboard snapshot
     console.log("[ChatPage] Calling sendMessage with metadata");
     sendMessage({
       text: content,
       metadata: {
-        expertMode: expertModeFlag,
+        aryabhattaMode: aryabhattaModeFlag,
         whiteboardSnapshot: whiteboardSnapshot,
       },
     });

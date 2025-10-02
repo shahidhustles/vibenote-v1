@@ -1,5 +1,26 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "katex/dist/katex.min.css";
+
+/* Custom styles for math rendering */
+.katex {
+  font-size: 1.1em;
+}
+
+.katex-display {
+  margin: 1rem 0;
+  text-align: center;
+}
+
+/* Hide scrollbars */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
 
 @custom-variant dark (&:is(.dark *));
 
