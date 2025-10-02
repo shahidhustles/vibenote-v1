@@ -3,17 +3,20 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Send } from "lucide-react";
+import { Toggle } from "@/components/ui/toggle";
+import { Send, BookOpen } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 
 interface ChatInputProps {
   onSendMessage?: (
     message: string,
     aryabhattaMode?: boolean,
-    whiteboardSnapshot?: string
+    whiteboardSnapshot?: string,
+    libraryMode?: boolean
   ) => void;
   isMainPage?: boolean;
   onAryabhattaMode?: () => void;
+  onLibraryMode?: () => void;
   onCaptureWhiteboard?: () => Promise<string | null>;
 }
 
@@ -28,10 +31,12 @@ export function ChatInput({
   onSendMessage,
   isMainPage = false,
   onAryabhattaMode,
+  onLibraryMode,
   onCaptureWhiteboard,
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [aryabhattaMode, setAryabhattaMode] = useState(false);
+  const [libraryMode, setLibraryMode] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({
     x: 0,
@@ -108,7 +113,7 @@ export function ChatInput({
     // Remove @Whiteboard tag from message before sending
     const cleanMessage = message.replace(/@Whiteboard\s*/g, "").trim();
 
-    // Pass message, aryabhatta mode, and optional whiteboard snapshot
+    // Pass message, aryabhatta mode, library mode, and optional whiteboard snapshot
     console.log(
       "[ChatInput] Sending message with snapshot:",
       !!whiteboardSnapshot
@@ -116,7 +121,8 @@ export function ChatInput({
     onSendMessage(
       cleanMessage,
       aryabhattaMode,
-      whiteboardSnapshot || undefined
+      whiteboardSnapshot || undefined,
+      libraryMode
     );
     setMessage("");
     setWhiteboardAttached(false);
@@ -305,23 +311,22 @@ export function ChatInput({
             )}
           </div>
 
-          {/* Aryabhatta Mode Toggle */}
-          <div className="flex items-center space-x-2 p-2 mb-2 mr-2">
-            <Switch
-              id="aryabhatta-mode"
-              checked={aryabhattaMode}
-              onCheckedChange={(checked) => {
-                setAryabhattaMode(checked);
-                onAryabhattaMode?.();
+          {/* Library Mode Toggle - Inline with Send Button */}
+          <div className="flex items-center p-2">
+            <Toggle
+              pressed={libraryMode}
+              onPressedChange={(pressed) => {
+                setLibraryMode(pressed);
+                onLibraryMode?.();
               }}
-              className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500 data-[state=checked]:to-blue-500"
-            />
-            <label
-              htmlFor="aryabhatta-mode"
-              className="text-sm font-medium text-slate-700 cursor-pointer select-none"
+              variant="outline"
+              size="sm"
+              className="data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-500 data-[state=on]:via-blue-500 data-[state=on]:to-cyan-400 data-[state=on]:text-white data-[state=on]:border-transparent data-[state=on]:shadow-md h-9"
+              aria-label="Toggle Library Mode"
             >
-              Aryabhatta Mode
-            </label>
+              <BookOpen className="h-4 w-4 mr-2" />
+              Library Mode
+            </Toggle>
           </div>
 
           {/* Send Button */}
@@ -330,19 +335,48 @@ export function ChatInput({
               type="submit"
               size="sm"
               disabled={!message.trim()}
-              className="bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-400 hover:from-purple-600 hover:via-blue-600 hover:to-cyan-500 text-white rounded-lg p-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              className="bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-400 hover:from-purple-600 hover:via-blue-600 hover:to-cyan-500 text-white rounded-lg p-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg h-9"
             >
               <Send className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
+        {/* Aryabhatta Mode Toggle - Below chat container, aligned to the right */}
+        <div className="flex items-center justify-end space-x-2 mt-3">
+          <Switch
+            id="aryabhatta-mode"
+            checked={aryabhattaMode}
+            onCheckedChange={(checked) => {
+              setAryabhattaMode(checked);
+              onAryabhattaMode?.();
+            }}
+            className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500 data-[state=checked]:to-blue-500"
+          />
+          <label
+            htmlFor="aryabhatta-mode"
+            className="text-sm font-medium text-slate-700 cursor-pointer select-none"
+          >
+            Aryabhatta Mode
+          </label>
+        </div>
+
         {/* Bottom Helper Text */}
         <div className="text-xs mt-2 text-center drop-shadow-sm">
-          {aryabhattaMode ? (
+          {aryabhattaMode && libraryMode ? (
+            <span className="text-slate-700 font-medium">
+              Aryabhatta Mode & Library Mode Active - Enhanced mathematical
+              analysis with document retrieval
+            </span>
+          ) : aryabhattaMode ? (
             <span className="text-slate-700 font-medium">
               Aryabhatta Mode Active - Enhanced mathematical and physics
               analysis using specialized AI models
+            </span>
+          ) : libraryMode ? (
+            <span className="text-slate-700 font-medium">
+              Library Mode Active - AI can search and retrieve context from your
+              uploaded documents
             </span>
           ) : (
             <span className="text-slate-700">

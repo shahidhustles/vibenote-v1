@@ -64,6 +64,8 @@ export const addMessage = mutation({
         tokens: v.optional(v.number()),
         model: v.optional(v.string()),
         duration: v.optional(v.number()),
+        morphikImages: v.optional(v.array(v.string())),
+        morphikContext: v.optional(v.string()),
       })
     ),
   },
@@ -185,6 +187,79 @@ export const updateChatTitle = mutation({
     });
 
     return session;
+  },
+});
+
+export const updateMessageMetadata = mutation({
+  args: {
+    messageId: v.id("messages"),
+    metadata: v.object({
+      morphikImages: v.optional(v.array(v.string())),
+      morphikContext: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+
+    if (!message) {
+      throw new Error("Message not found");
+    }
+
+    // Merge new metadata with existing metadata
+    const updatedMetadata = {
+      ...message.metadata,
+      ...args.metadata,
+    };
+
+    await ctx.db.patch(args.messageId, {
+      metadata: updatedMetadata,
+    });
+
+    return { success: true };
+  },
+});
+
+export const saveMorphikRetrieval = mutation({
+  args: {
+    chatId: v.string(),
+    userId: v.string(),
+    query: v.string(),
+    imageUrls: v.array(v.string()),
+    context: v.string(),
+    imageCount: v.number(),
+    textChunkCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const retrievalId = await ctx.db.insert("morphikRetrievals", {
+      chatId: args.chatId,
+      userId: args.userId,
+      query: args.query,
+      imageUrls: args.imageUrls,
+      context: args.context,
+      imageCount: args.imageCount,
+      textChunkCount: args.textChunkCount,
+      timestamp: Date.now(),
+      status: "completed",
+    });
+
+    return { retrievalId, success: true };
+  },
+});
+
+export const getRetrievalsByChatId = query({
+  args: {
+    chatId: v.string(),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const retrievals = await ctx.db
+      .query("morphikRetrievals")
+      .withIndex("by_chatId", (q) => q.eq("chatId", args.chatId))
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .order("desc")
+      .collect();
+
+    return retrievals;
   },
 });
 

@@ -18,6 +18,7 @@ interface ChatInstancePageProps {
   searchParams: Promise<{
     initialMessage?: string;
     aryabhattaMode?: string;
+    libraryMode?: string;
   }>;
 }
 
@@ -35,10 +36,23 @@ export default function ChatInstancePage({
 
   // Aryabhatta mode state
   const [aryabhattaMode, setAryabhattaMode] = useState(false);
+  // Library mode state
+  const [libraryMode, setLibraryMode] = useState(false);
 
   // Load existing messages from database
   const existingMessages = useQuery(
     api.chat.getMessages,
+    user?.id
+      ? {
+          chatId: chatId,
+          userId: user.id,
+        }
+      : "skip"
+  );
+
+  // Load Morphik retrievals for this chat (realtime updates)
+  const morphikRetrievals = useQuery(
+    api.chat.getRetrievalsByChatId,
     user?.id
       ? {
           chatId: chatId,
@@ -56,20 +70,26 @@ export default function ChatInstancePage({
 
   // Use the v5 useChat hook with proper transport
   const { messages, status, sendMessage, setMessages } = useChat({
+    
     transport: new DefaultChatTransport({
       api: "/api/chat",
+
       prepareSendMessagesRequest: ({ messages, body }) => {
-        // Extract aryabhatta mode from the last message's metadata
+        // Extract aryabhatta mode and library mode from the last message's metadata
         const lastMessage = messages[messages.length - 1];
-        const aryabhattaModeFromMessage =
-          (lastMessage?.metadata as { aryabhattaMode?: boolean })
-            ?.aryabhattaMode || false;
+        const metadata = lastMessage?.metadata as {
+          aryabhattaMode?: boolean;
+          libraryMode?: boolean;
+        };
+        const aryabhattaModeFromMessage = metadata?.aryabhattaMode || false;
+        const libraryModeFromMessage = metadata?.libraryMode || false;
 
         return {
           body: {
             chatId: chatId, // Always pass the chatId from URL
             messages,
             aryabhattaMode: aryabhattaModeFromMessage, // Pass aryabhatta mode flag
+            libraryMode: libraryModeFromMessage, // Pass library mode flag
             ...body,
           },
         };
@@ -86,13 +106,35 @@ export default function ChatInstancePage({
   // Load existing messages into the chat when they're available
   useEffect(() => {
     if (existingMessages !== undefined && !existingMessagesLoaded.current) {
+      console.log(
+        "[ChatPage] Loading existing messages:",
+        existingMessages?.length
+      );
+      console.log(
+        "[ChatPage] Raw existingMessages from Convex:",
+        existingMessages
+      );
+
       // existingMessages is an array (empty or with messages) or null
       if (existingMessages && existingMessages.length > 0) {
-        const convertedExistingMessages = existingMessages.map((msg) => ({
-          id: msg._id,
-          role: msg.role as "user" | "assistant",
-          parts: [{ type: "text" as const, text: msg.content }],
-        }));
+        const convertedExistingMessages = existingMessages.map((msg) => {
+          console.log("[ChatPage] Converting message:", {
+            id: msg._id,
+            role: msg.role,
+            hasMetadata: !!msg.metadata,
+            metadata: msg.metadata,
+            fullMessage: msg,
+          });
+
+          return {
+            id: msg._id,
+            role: msg.role as "user" | "assistant",
+            parts: [{ type: "text" as const, text: msg.content }],
+            metadata: msg.metadata, // Include metadata (morphikImages, morphikContext, etc.)
+          };
+        });
+
+        console.log("[ChatPage] Setting messages:", convertedExistingMessages);
         setMessages(convertedExistingMessages);
       }
 
@@ -108,6 +150,13 @@ export default function ChatInstancePage({
     }
   }, [unwrappedSearchParams.aryabhattaMode]);
 
+  // Set library mode from URL parameter
+  useEffect(() => {
+    if (unwrappedSearchParams.libraryMode === "true") {
+      setLibraryMode(true);
+    }
+  }, [unwrappedSearchParams.libraryMode]);
+
   // Handle initial message from search params
   const handleInitialMessage = useCallback(() => {
     if (
@@ -122,7 +171,10 @@ export default function ChatInstancePage({
       // Send the initial message immediately
       sendMessage({
         text: initialMsg,
-        metadata: { aryabhattaMode: aryabhattaMode }, // Use aryabhatta mode from state
+        metadata: {
+          aryabhattaMode: aryabhattaMode,
+          libraryMode: libraryMode,
+        },
       });
       initialMessageSent.current = true;
     }
@@ -131,6 +183,7 @@ export default function ChatInstancePage({
     messages.length,
     sendMessage,
     aryabhattaMode,
+    libraryMode,
   ]);
 
   // For new chats with initial message, send it immediately without waiting
@@ -147,7 +200,10 @@ export default function ChatInstancePage({
       );
       sendMessage({
         text: initialMsg,
-        metadata: { aryabhattaMode: aryabhattaMode }, // Use aryabhatta mode from state
+        metadata: {
+          aryabhattaMode: aryabhattaMode,
+          libraryMode: libraryMode,
+        },
       });
       initialMessageSent.current = true;
       existingMessagesLoaded.current = true; // Mark as loaded since it's a new chat
@@ -158,6 +214,7 @@ export default function ChatInstancePage({
     sendMessage,
     existingMessages,
     aryabhattaMode,
+    libraryMode,
     user,
   ]);
 
@@ -196,11 +253,13 @@ export default function ChatInstancePage({
   const handleSendMessage = (
     content: string,
     aryabhattaModeFlag: boolean = false,
-    whiteboardSnapshot?: string
+    whiteboardSnapshot?: string,
+    libraryModeFlag: boolean = false
   ) => {
     console.log("[ChatPage] handleSendMessage called");
     console.log("[ChatPage] Message length:", content.length);
     console.log("[ChatPage] Aryabhatta mode:", aryabhattaModeFlag);
+    console.log("[ChatPage] Library mode:", libraryModeFlag);
     console.log("[ChatPage] Has whiteboard snapshot:", !!whiteboardSnapshot);
 
     // Don't send messages while loading existing messages or if user is not loaded
@@ -218,12 +277,13 @@ export default function ChatInstancePage({
       );
     }
 
-    // Send message using v5 API with aryabhatta mode flag and optional whiteboard snapshot
+    // Send message using v5 API with mode flags and optional whiteboard snapshot
     console.log("[ChatPage] Calling sendMessage with metadata");
     sendMessage({
       text: content,
       metadata: {
         aryabhattaMode: aryabhattaModeFlag,
+        libraryMode: libraryModeFlag,
         whiteboardSnapshot: whiteboardSnapshot,
       },
     });
@@ -296,6 +356,8 @@ export default function ChatInstancePage({
                     message={message}
                     userAvatar={user.imageUrl}
                     userName={user.fullName || user.username || undefined}
+                    chatId={chatId}
+                    morphikRetrievals={morphikRetrievals || []}
                   />
                 ))}
 

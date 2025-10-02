@@ -25,18 +25,42 @@ function preprocessMath(text: string): string {
   );
 }
 
+interface MorphikRetrieval {
+  _id: string;
+  chatId: string;
+  userId: string;
+  query: string;
+  imageUrls: string[];
+  context: string;
+  imageCount: number;
+  textChunkCount: number;
+  timestamp: number;
+  status: "pending" | "completed";
+}
+
 interface MessageBubbleProps {
   message: UIMessage;
   userAvatar?: string;
   userName?: string;
+  chatId?: string;
+  morphikRetrievals?: MorphikRetrieval[];
 }
 
 export function MessageBubble({
   message,
   userAvatar,
   userName,
+  morphikRetrievals = [],
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
+
+  // Debug: Log message data
+  console.log("[MessageBubble] Rendering message:", {
+    id: message.id,
+    role: message.role,
+    hasMetadata: !!message.metadata,
+    metadata: message.metadata,
+  });
 
   return (
     <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
@@ -189,11 +213,62 @@ export function MessageBubble({
                 </div>
               );
 
+            // Handle retrieveMorphik tool calls
+            case "tool-retrieveMorphik":
+              return (
+                <div key={index} className="mb-3">
+                  {renderToolCall(part, "retrieveMorphik", message.id)}
+                </div>
+              );
+
             // Handle other tool calls
             default:
               return null;
           }
         })}
+
+        {/* Morphik Retrieved Images - Display from realtime Convex query */}
+        {!isUser &&
+          morphikRetrievals.length > 0 &&
+          (() => {
+            // Get all unique images from all retrievals for this chat
+            const allImages = morphikRetrievals.flatMap(
+              (retrieval) => retrieval.imageUrls
+            );
+
+            if (allImages.length === 0) {
+              return null;
+            }
+
+            console.log(
+              "[MessageBubble] Rendering",
+              allImages.length,
+              "Morphik images from realtime retrievals"
+            );
+
+            return (
+              <div className="mt-4 space-y-3">
+                
+                <div className="grid grid-cols-1 gap-3">
+                  {allImages.map((imageUrl: string, idx: number) => (
+                    <div
+                      key={idx}
+                      className="relative rounded-lg overflow-hidden border border-pink-200 bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <Image
+                        src={imageUrl}
+                        alt={`Document reference ${idx + 1}`}
+                        width={600}
+                        height={400}
+                        className="w-full h-auto object-contain"
+                        unoptimized
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
         {/* Timestamp */}
         <div className="mt-2 text-xs opacity-70">
@@ -230,7 +305,7 @@ export function MessageBubble({
 
 // Helper function to render tool calls based on their state
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function renderToolCall(part: any, toolName: string) {
+function renderToolCall(part: any, toolName: string, messageId?: string) {
   const toolCallId = part.toolCallId;
 
   // Render based on tool type
@@ -396,6 +471,60 @@ function renderToolCall(part: any, toolName: string) {
     }
   }
 
+  if (toolName === "retrieveMorphik") {
+    switch (part.state) {
+      case "input-streaming":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(236, 72, 153, 0.7)"
+              className="text-md font-medium"
+            >
+              📚 Searching your documents...
+            </ShiningText>
+          </div>
+        );
+      case "input-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(236, 72, 153, 0.7)"
+              className="text-md font-medium"
+            >
+              📚 Searching for: &ldquo;
+              {part.input?.query?.substring(0, 50) || "information"}
+              {part.input?.query?.length > 50 ? "..." : ""}
+              &rdquo;
+            </ShiningText>
+          </div>
+        );
+      case "output-available":
+        return (
+          <MorphikOutputDisplay
+            key={toolCallId}
+            part={part}
+            messageId={messageId}
+          />
+        );
+      case "output-error":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(239, 68, 68, 0.7)"
+              className="text-md font-medium"
+            >
+              📚 Error: {part.errorText || "Failed to retrieve from library"}
+            </ShiningText>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
   return null;
 }
 
@@ -516,6 +645,142 @@ function AryabhattaOutputDisplay({ part }: { part: any }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Special component for Morphik output with dropdown
+// Note: Images are saved to Convex automatically by the API route's onFinish callback
+// and will appear below the message via Convex realtime updates
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function MorphikOutputDisplay({ part }: { part: any; messageId?: string }) {
+  const [showContext, setShowContext] = useState(false);
+
+  const imageCount = part.output?.imageCount || 0;
+  const textChunkCount = part.output?.textChunkCount || 0;
+
+  return (
+    <div className="space-y-2">
+      {/* Main status with shining text */}
+      <div className="text-md">
+        <ShiningText
+          duration="2s"
+          textColor="rgba(236, 72, 153, 0.7)"
+          className="text-md font-medium"
+        >
+          📚 Found {imageCount} image{imageCount !== 1 ? "s" : ""} and{" "}
+          {textChunkCount} text chunk{textChunkCount !== 1 ? "s" : ""} from your
+          library
+        </ShiningText>
+      </div>
+
+      {/* Dropdown toggle for context */}
+      {part.output?.context && (
+        <>
+          <button
+            onClick={() => setShowContext(!showContext)}
+            className="flex items-center gap-2 text-sm text-pink-600 hover:text-pink-700 transition-colors"
+          >
+            {showContext ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            View retrieved context from documents
+          </button>
+
+          {/* Collapsible context */}
+          {showContext && (
+            <div className="mt-2 p-3 bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-200 rounded-lg">
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    code({ className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      return match ? (
+                        <SyntaxHighlighter
+                          style={tomorrow}
+                          language={match[1]}
+                          PreTag="div"
+                          className="rounded-md"
+                        >
+                          {String(children).replace(/\n$/, "")}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code
+                          className="bg-gray-200 px-1 py-0.5 rounded text-sm"
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                    p: ({ children }) => (
+                      <p className="mb-2 text-gray-700 leading-relaxed">
+                        {children}
+                      </p>
+                    ),
+                    h1: ({ children }) => (
+                      <h1 className="text-lg font-bold mb-2 text-gray-800">
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className="text-md font-semibold mb-2 text-gray-700">
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className="text-sm font-semibold mb-1 text-gray-600">
+                        {children}
+                      </h3>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc list-inside mb-2 space-y-1">
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal list-inside mb-2 space-y-1">
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => (
+                      <li className="text-gray-700">{children}</li>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className="font-semibold text-gray-800">
+                        {children}
+                      </strong>
+                    ),
+                    em: ({ children }) => (
+                      <em className="italic text-gray-600">{children}</em>
+                    ),
+                    blockquote: ({ children }) => (
+                      <blockquote className="border-l-4 border-pink-400 pl-4 italic text-gray-600 mb-2">
+                        {children}
+                      </blockquote>
+                    ),
+                  }}
+                >
+                  {preprocessMath(
+                    part.output?.context || "No context available"
+                  )}
+                </ReactMarkdown>
+              </div>
+              {part.output?.error && (
+                <div className="mt-2 text-xs text-red-600">
+                  Error: {part.output.error}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+     
     </div>
   );
 }
