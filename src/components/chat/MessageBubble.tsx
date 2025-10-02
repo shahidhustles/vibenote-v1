@@ -25,17 +25,329 @@ function preprocessMath(text: string): string {
   );
 }
 
-interface MorphikRetrieval {
-  _id: string;
-  chatId: string;
-  userId: string;
-  query: string;
-  imageUrls: string[];
-  context: string;
-  imageCount: number;
-  textChunkCount: number;
-  timestamp: number;
-  status: "pending" | "completed";
+// Helper function to detect and render Cloudinary URLs in text
+function renderTextWithImages(text: string): React.ReactNode {
+  // Regex to match Cloudinary URLs on their own line
+  const cloudinaryRegex = /^https:\/\/res\.cloudinary\.com\/[^\s]+$/gm;
+
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = cloudinaryRegex.exec(text)) !== null) {
+    // Add text before the URL
+    if (match.index > lastIndex) {
+      const beforeText = text.slice(lastIndex, match.index).trim();
+      if (beforeText) {
+        parts.push(
+          <div key={`text-${lastIndex}`} className="prose prose-sm max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  return match ? (
+                    <SyntaxHighlighter
+                      style={tomorrow}
+                      language={match[1]}
+                      PreTag="div"
+                      className="rounded-md"
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <code
+                      className="bg-gray-200 px-1 py-0.5 rounded text-sm"
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  );
+                },
+                table: ({ children }) => (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse border border-gray-300">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-gray-300 px-3 py-2 bg-gray-50 text-left font-semibold">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-gray-300 px-3 py-2">
+                    {children}
+                  </td>
+                ),
+                h1: ({ children }) => (
+                  <h1 className="text-xl font-bold mb-3 text-gray-900">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-lg font-semibold mb-2 text-gray-800">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-md font-semibold mb-2 text-gray-700">
+                    {children}
+                  </h3>
+                ),
+                p: ({ children }) => (
+                  <p className="mb-2 text-gray-900 leading-relaxed">
+                    {children}
+                  </p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside mb-2 space-y-1">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside mb-2 space-y-1">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => (
+                  <li className="text-gray-900">{children}</li>
+                ),
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-700 mb-2">
+                    {children}
+                  </blockquote>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-gray-900">
+                    {children}
+                  </strong>
+                ),
+                em: ({ children }) => (
+                  <em className="italic text-gray-800">{children}</em>
+                ),
+              }}
+            >
+              {preprocessMath(beforeText)}
+            </ReactMarkdown>
+          </div>
+        );
+      }
+    }
+
+    // Add the image
+    parts.push(
+      <div key={`image-${match.index}`} className="my-4">
+        <div className="relative rounded-lg overflow-hidden border border-pink-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+          <Image
+            src={match[0]}
+            alt="Retrieved from documents"
+            width={600}
+            height={400}
+            className="w-full h-auto object-contain"
+            unoptimized
+          />
+        </div>
+      </div>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after the last URL
+  if (lastIndex < text.length) {
+    const remainingText = text.slice(lastIndex).trim();
+    if (remainingText) {
+      parts.push(
+        <div key={`text-${lastIndex}`} className="prose prose-sm max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={{
+              code({ className, children, ...props }) {
+                const match = /language-(\w+)/.exec(className || "");
+                return match ? (
+                  <SyntaxHighlighter
+                    style={tomorrow}
+                    language={match[1]}
+                    PreTag="div"
+                    className="rounded-md"
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
+                ) : (
+                  <code
+                    className="bg-gray-200 px-1 py-0.5 rounded text-sm"
+                    {...props}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+              table: ({ children }) => (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse border border-gray-300">
+                    {children}
+                  </table>
+                </div>
+              ),
+              th: ({ children }) => (
+                <th className="border border-gray-300 px-3 py-2 bg-gray-50 text-left font-semibold">
+                  {children}
+                </th>
+              ),
+              td: ({ children }) => (
+                <td className="border border-gray-300 px-3 py-2">{children}</td>
+              ),
+              h1: ({ children }) => (
+                <h1 className="text-xl font-bold mb-3 text-gray-900">
+                  {children}
+                </h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-lg font-semibold mb-2 text-gray-800">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-md font-semibold mb-2 text-gray-700">
+                  {children}
+                </h3>
+              ),
+              p: ({ children }) => (
+                <p className="mb-2 text-gray-900 leading-relaxed">{children}</p>
+              ),
+              ul: ({ children }) => (
+                <ul className="list-disc list-inside mb-2 space-y-1">
+                  {children}
+                </ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="list-decimal list-inside mb-2 space-y-1">
+                  {children}
+                </ol>
+              ),
+              li: ({ children }) => (
+                <li className="text-gray-900">{children}</li>
+              ),
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-700 mb-2">
+                  {children}
+                </blockquote>
+              ),
+              strong: ({ children }) => (
+                <strong className="font-semibold text-gray-900">
+                  {children}
+                </strong>
+              ),
+              em: ({ children }) => (
+                <em className="italic text-gray-800">{children}</em>
+              ),
+            }}
+          >
+            {preprocessMath(remainingText)}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+  }
+
+  // If no URLs found, render as normal markdown
+  if (parts.length === 0) {
+    return (
+      <div className="prose prose-sm max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={{
+            code({ className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || "");
+              return match ? (
+                <SyntaxHighlighter
+                  style={tomorrow}
+                  language={match[1]}
+                  PreTag="div"
+                  className="rounded-md"
+                >
+                  {String(children).replace(/\n$/, "")}
+                </SyntaxHighlighter>
+              ) : (
+                <code
+                  className="bg-gray-200 px-1 py-0.5 rounded text-sm"
+                  {...props}
+                >
+                  {children}
+                </code>
+              );
+            },
+            table: ({ children }) => (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse border border-gray-300">
+                  {children}
+                </table>
+              </div>
+            ),
+            th: ({ children }) => (
+              <th className="border border-gray-300 px-3 py-2 bg-gray-50 text-left font-semibold">
+                {children}
+              </th>
+            ),
+            td: ({ children }) => (
+              <td className="border border-gray-300 px-3 py-2">{children}</td>
+            ),
+            h1: ({ children }) => (
+              <h1 className="text-xl font-bold mb-3 text-gray-900">
+                {children}
+              </h1>
+            ),
+            h2: ({ children }) => (
+              <h2 className="text-lg font-semibold mb-2 text-gray-800">
+                {children}
+              </h2>
+            ),
+            h3: ({ children }) => (
+              <h3 className="text-md font-semibold mb-2 text-gray-700">
+                {children}
+              </h3>
+            ),
+            p: ({ children }) => (
+              <p className="mb-2 text-gray-900 leading-relaxed">{children}</p>
+            ),
+            ul: ({ children }) => (
+              <ul className="list-disc list-inside mb-2 space-y-1">
+                {children}
+              </ul>
+            ),
+            ol: ({ children }) => (
+              <ol className="list-decimal list-inside mb-2 space-y-1">
+                {children}
+              </ol>
+            ),
+            li: ({ children }) => <li className="text-gray-900">{children}</li>,
+            blockquote: ({ children }) => (
+              <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-700 mb-2">
+                {children}
+              </blockquote>
+            ),
+            strong: ({ children }) => (
+              <strong className="font-semibold text-gray-900">
+                {children}
+              </strong>
+            ),
+            em: ({ children }) => (
+              <em className="italic text-gray-800">{children}</em>
+            ),
+          }}
+        >
+          {preprocessMath(text)}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  return <>{parts}</>;
 }
 
 interface MessageBubbleProps {
@@ -43,14 +355,12 @@ interface MessageBubbleProps {
   userAvatar?: string;
   userName?: string;
   chatId?: string;
-  morphikRetrievals?: MorphikRetrieval[];
 }
 
 export function MessageBubble({
   message,
   userAvatar,
   userName,
-  morphikRetrievals = [],
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
@@ -90,101 +400,7 @@ export function MessageBubble({
                   {isUser ? (
                     <p className="whitespace-pre-wrap">{part.text}</p>
                   ) : part.text.length > 0 ? (
-                    <div className="prose prose-sm max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{
-                          code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(
-                              className || ""
-                            );
-                            return match ? (
-                              <SyntaxHighlighter
-                                style={tomorrow}
-                                language={match[1]}
-                                PreTag="div"
-                                className="rounded-md"
-                              >
-                                {String(children).replace(/\n$/, "")}
-                              </SyntaxHighlighter>
-                            ) : (
-                              <code
-                                className="bg-gray-200 px-1 py-0.5 rounded text-sm"
-                                {...props}
-                              >
-                                {children}
-                              </code>
-                            );
-                          },
-                          table: ({ children }) => (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full border-collapse border border-gray-300">
-                                {children}
-                              </table>
-                            </div>
-                          ),
-                          th: ({ children }) => (
-                            <th className="border border-gray-300 px-3 py-2 bg-gray-50 text-left font-semibold">
-                              {children}
-                            </th>
-                          ),
-                          td: ({ children }) => (
-                            <td className="border border-gray-300 px-3 py-2">
-                              {children}
-                            </td>
-                          ),
-                          h1: ({ children }) => (
-                            <h1 className="text-xl font-bold mb-3 text-gray-900">
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2 className="text-lg font-semibold mb-2 text-gray-800">
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3 className="text-md font-semibold mb-2 text-gray-700">
-                              {children}
-                            </h3>
-                          ),
-                          p: ({ children }) => (
-                            <p className="mb-2 text-gray-900 leading-relaxed">
-                              {children}
-                            </p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul className="list-disc list-inside mb-2 space-y-1">
-                              {children}
-                            </ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol className="list-decimal list-inside mb-2 space-y-1">
-                              {children}
-                            </ol>
-                          ),
-                          li: ({ children }) => (
-                            <li className="text-gray-900">{children}</li>
-                          ),
-                          blockquote: ({ children }) => (
-                            <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-700 mb-2">
-                              {children}
-                            </blockquote>
-                          ),
-                          strong: ({ children }) => (
-                            <strong className="font-semibold text-gray-900">
-                              {children}
-                            </strong>
-                          ),
-                          em: ({ children }) => (
-                            <em className="italic text-gray-800">{children}</em>
-                          ),
-                        }}
-                      >
-                        {preprocessMath(part.text)}
-                      </ReactMarkdown>
-                    </div>
+                    renderTextWithImages(part.text)
                   ) : null}
                 </div>
               );
@@ -226,49 +442,6 @@ export function MessageBubble({
               return null;
           }
         })}
-
-        {/* Morphik Retrieved Images - Display from realtime Convex query */}
-        {!isUser &&
-          morphikRetrievals.length > 0 &&
-          (() => {
-            // Get all unique images from all retrievals for this chat
-            const allImages = morphikRetrievals.flatMap(
-              (retrieval) => retrieval.imageUrls
-            );
-
-            if (allImages.length === 0) {
-              return null;
-            }
-
-            console.log(
-              "[MessageBubble] Rendering",
-              allImages.length,
-              "Morphik images from realtime retrievals"
-            );
-
-            return (
-              <div className="mt-4 space-y-3">
-                
-                <div className="grid grid-cols-1 gap-3">
-                  {allImages.map((imageUrl: string, idx: number) => (
-                    <div
-                      key={idx}
-                      className="relative rounded-lg overflow-hidden border border-pink-200 bg-white shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      <Image
-                        src={imageUrl}
-                        alt={`Document reference ${idx + 1}`}
-                        width={600}
-                        height={400}
-                        className="w-full h-auto object-contain"
-                        unoptimized
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
 
         {/* Timestamp */}
         <div className="mt-2 text-xs opacity-70">
@@ -779,8 +952,6 @@ function MorphikOutputDisplay({ part }: { part: any; messageId?: string }) {
           )}
         </>
       )}
-
-     
     </div>
   );
 }

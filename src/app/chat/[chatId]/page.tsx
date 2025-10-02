@@ -50,17 +50,6 @@ export default function ChatInstancePage({
       : "skip"
   );
 
-  // Load Morphik retrievals for this chat (realtime updates)
-  const morphikRetrievals = useQuery(
-    api.chat.getRetrievalsByChatId,
-    user?.id
-      ? {
-          chatId: chatId,
-          userId: user.id,
-        }
-      : "skip"
-  );
-
   // Ref for scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -70,7 +59,6 @@ export default function ChatInstancePage({
 
   // Use the v5 useChat hook with proper transport
   const { messages, status, sendMessage, setMessages } = useChat({
-    
     transport: new DefaultChatTransport({
       api: "/api/chat",
 
@@ -357,7 +345,6 @@ export default function ChatInstancePage({
                     userAvatar={user.imageUrl}
                     userName={user.fullName || user.username || undefined}
                     chatId={chatId}
-                    morphikRetrievals={morphikRetrievals || []}
                   />
                 ))}
 

@@ -20,7 +20,11 @@ import {
   explainWithAryabhatta,
   determineAryabhattaEndpoint,
 } from "@/actions/use-aryabhatta";
-import { retrieveAndSaveToConvex } from "@/actions/retrieve-morphik";
+import {
+  retrieveFromMorphik,
+  extractContextText,
+  extractImageUrls,
+} from "@/actions/retrieve-morphik";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -224,14 +228,25 @@ WORKFLOW:
 1. When you receive a question that might be in their study materials, call retrieveMorphik with a relevant search query
 2. Wait for the tool to return context and images from the documents
 3. Use the retrieved context as the PRIMARY source for your answer
-4. If images are returned, reference them in your response (they will be displayed to the user)
+4. If images are returned, DIRECTLY EMBED them in your response by pasting the Cloudinary URLs on new lines
 5. Combine the document context with your teaching abilities to provide clear explanations
 6. If the tool returns no results, inform the user and offer to help based on general knowledge
+
+CRITICAL IMAGE HANDLING:
+- When the retrieveMorphik tool returns image URLs, you MUST include them directly in your response
+- Place each image URL on its own new line in your response (the frontend will automatically render them)
+- Reference the images naturally in your explanation (e.g., "As shown in the figure below:" or "Looking at the diagram:")
+- Example format:
+  "Looking at the diagram from your textbook:
+  
+  https://res.cloudinary.com/example/image/upload/v123/figure1.jpg
+  
+  This shows the molecular structure of..."
 
 IMPORTANT: 
 - Always prioritize information from the user's documents over general knowledge when available
 - Reference specific parts of their materials when explaining concepts
-- If images from documents are available, mention them: "Looking at the diagram from your textbook..."
+- ALWAYS include retrieved image URLs directly in your response text
 - Be clear about whether you're using their materials or general knowledge in your response
 
 Remember: Library Mode allows you to provide personalized, accurate explanations based on the EXACT materials the user is studying!`;
@@ -354,7 +369,7 @@ Remember: Library Mode allows you to provide personalized, accurate explanations
         ...(libraryMode
           ? {
               retrieveMorphik: tool({
-                description: `Search and retrieve relevant context and images from the user's uploaded Textbooks and notes. Use this tool when the user asks questions that might be answered by their uploaded Textbooks or documents. This tool returns both textual context and related images from the documents.`,
+                description: `Search and retrieve relevant context and images from the user's uploaded Textbooks and notes. Use this tool when the user asks questions that might be answered by their uploaded Textbooks or documents. This tool returns both textual context and related image URLs that you MUST embed directly in your response text.`,
                 inputSchema: z.object({
                   query: z
                     .string()
@@ -370,23 +385,28 @@ Remember: Library Mode allows you to provide personalized, accurate explanations
                   console.log("[API Route - retrieveMorphik] ChatId:", chatId);
 
                   try {
-                    // Use the new function that retrieves AND saves to Convex
-                    const result = await retrieveAndSaveToConvex(
-                      query,
-                      userId,
-                      chatId || ""
-                    );
+                    // Retrieve directly from Morphik API (no Convex saving)
+                    const result = await retrieveFromMorphik(query, userId);
+
+                    const contextText = extractContextText(result);
+                    const imageUrls = extractImageUrls(result);
 
                     console.log(
-                      "[API Route - retrieveMorphik] Successfully retrieved and saved:",
+                      "[API Route - retrieveMorphik] Successfully retrieved:",
                       {
-                        imageCount: result.imageCount,
-                        textChunkCount: result.textChunkCount,
-                        contextLength: result.context.length,
+                        imageCount: result.image_content.length,
+                        textChunkCount: result.text_content.length,
+                        contextLength: contextText.length,
+                        imageUrls: imageUrls,
                       }
                     );
 
-                    return result;
+                    return {
+                      context: contextText,
+                      imageUrls: imageUrls,
+                      imageCount: result.image_content.length,
+                      textChunkCount: result.text_content.length,
+                    };
                   } catch (error) {
                     console.error(
                       "[API Route - retrieveMorphik] Error:",
@@ -407,57 +427,9 @@ Remember: Library Mode allows you to provide personalized, accurate explanations
       },
       onFinish: async (result) => {
         console.log("[API Route] onFinish called");
-        console.log("[API Route] Tool results:", result.toolResults);
 
         // Determine if it's the first message for this chat
         const isFirstMessage = existingMessages.length === 0;
-
-        // Extract Morphik images from tool results if present
-        let morphikImages: string[] = [];
-        let morphikContext = "";
-
-        if (result.toolResults) {
-          console.log("[API Route] Processing tool results...");
-          for (const toolResult of result.toolResults) {
-            console.log("[API Route] Tool result:", {
-              toolName: toolResult?.toolName,
-              hasOutput: !!(toolResult as { output?: unknown })?.output,
-            });
-
-            if (toolResult && toolResult.toolName === "retrieveMorphik") {
-              console.log("[API Route] Found retrieveMorphik tool result");
-              // Access the output property which contains the tool execution result
-              const resultData = (
-                toolResult as {
-                  output: {
-                    imageUrls?: string[];
-                    context?: string;
-                  };
-                }
-              ).output;
-
-              console.log("[API Route] Result data:", resultData);
-
-              if (resultData?.imageUrls) {
-                morphikImages = resultData.imageUrls;
-                console.log("[API Route] Extracted image URLs:", morphikImages);
-              }
-              if (resultData?.context) {
-                morphikContext = resultData.context;
-                console.log(
-                  "[API Route] Extracted context length:",
-                  morphikContext.length
-                );
-              }
-            }
-          }
-        }
-
-        console.log("[API Route] Final morphikImages:", morphikImages);
-        console.log(
-          "[API Route] Final morphikContext length:",
-          morphikContext.length
-        );
 
         // Save the assistant message
         const assistantMessage = {
@@ -539,12 +511,10 @@ Generate only the title, no quotes or additional text. Keep it under 25 characte
             }
           }
 
-          // Add assistant message to existing chat
+          // Add assistant message to existing chat (no more morphik metadata)
           const metadataToSave = {
             model: "gemini-2.0-flash-exp",
             tokens: result.usage?.totalTokens,
-            morphikImages: morphikImages.length > 0 ? morphikImages : undefined,
-            morphikContext: morphikContext || undefined,
           };
 
           console.log("[API Route] Saving metadata to Convex:", metadataToSave);

@@ -25,8 +25,6 @@ export default defineSchema({
         tokens: v.optional(v.number()),
         model: v.optional(v.string()),
         duration: v.optional(v.number()),
-        morphikImages: v.optional(v.array(v.string())), // Convex URLs for retrieved images
-        morphikContext: v.optional(v.string()), // Text context used by AI
       })
     ),
   }).index("by_chatId", ["chatId"]),
@@ -45,21 +43,6 @@ export default defineSchema({
       v.literal("failed")
     ),
   }).index("by_user", ["userId"]),
-
-  // Morphik retrievals table for storing document retrieval results
-  morphikRetrievals: defineTable({
-    chatId: v.string(), // Link to chat session
-    userId: v.string(), // For access control
-    query: v.string(), // The search query used
-    imageUrls: v.array(v.string()), // Cloudinary URLs of retrieved images
-    context: v.string(), // Retrieved text context
-    imageCount: v.number(), // Number of images retrieved
-    textChunkCount: v.number(), // Number of text chunks retrieved
-    timestamp: v.number(), // When retrieved
-    status: v.union(v.literal("pending"), v.literal("completed")),
-  })
-    .index("by_chatId", ["chatId"])
-    .index("by_user", ["userId"]),
 
   // Flashcard decks table for storing AI-generated flashcards
   flashcardDecks: defineTable({

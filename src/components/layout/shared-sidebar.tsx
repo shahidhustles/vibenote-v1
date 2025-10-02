@@ -26,12 +26,11 @@ import {
   MessageSquare,
   Plus,
   History,
-  FileText,
   Upload,
-  BarChart3,
   MoreHorizontal,
   Trash2,
   BookOpen,
+  Book,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -54,19 +53,14 @@ const navItems = [
     href: "/chat",
   },
   {
-    title: "Dashboard",
-    icon: BarChart3,
-    href: "/dashboard",
-  },
-  {
-    title: "Upload Data",
+    title: "Upload Textbooks",
     icon: Upload,
     href: "/upload",
   },
   {
-    title: "Reports",
-    icon: FileText,
-    href: "/reports",
+    title: "Library",
+    icon: Book,
+    href: "/library",
   },
 ];
 
