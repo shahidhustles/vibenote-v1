@@ -25,7 +25,24 @@ export default defineSchema({
         tokens: v.optional(v.number()),
         model: v.optional(v.string()),
         duration: v.optional(v.number()),
+        morphikImages: v.optional(v.array(v.string())), // Convex URLs for retrieved images
+        morphikContext: v.optional(v.string()), // Text context used by AI
       })
     ),
   }).index("by_chatId", ["chatId"]),
+
+  // Files table for PDF storage (now using Cloudinary)
+  files: defineTable({
+    userId: v.string(),
+    filename: v.string(),
+    fileUrl: v.string(), // Cloudinary URL
+    fileSize: v.number(),
+    uploadedAt: v.number(),
+    status: v.union(
+      v.literal("uploaded"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+  }).index("by_user", ["userId"]),
 });
