@@ -256,6 +256,7 @@ export const ToolsDock = forwardRef<ToolsDockRef, ToolsDockProps>(
           chatId={chatId}
         />
         <FlashcardsDrawer
+          chatId={chatId}
           open={openDrawer === "flashcards"}
           onOpenChange={(open) => !open && setOpenDrawer(null)}
           widthClass="w-3/4 sm:max-w-sm"

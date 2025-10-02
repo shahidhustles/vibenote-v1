@@ -31,6 +31,7 @@ import {
   BarChart3,
   MoreHorizontal,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,7 @@ export function SharedSidebar({
     >
       <SidebarHeader className="border-b border-purple-200/40">
         <div className="flex items-center gap-2 px-1 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:justify-center">
-          <MessageSquare className="h-12 w-12 text-blue-600" />
+          <BookOpen className="h-8 w-8 text-blue-600" />
           <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden text-blue-900">
             VibeNote
           </span>

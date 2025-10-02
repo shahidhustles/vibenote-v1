@@ -60,4 +60,21 @@ export default defineSchema({
   })
     .index("by_chatId", ["chatId"])
     .index("by_user", ["userId"]),
+
+  // Flashcard decks table for storing AI-generated flashcards
+  flashcardDecks: defineTable({
+    chatId: v.string(), // Link to chat session
+    userId: v.string(), // Clerk userId for access control
+    flashcards: v.array(
+      v.object({
+        question: v.string(),
+        answer: v.string(),
+        hint: v.optional(v.string()),
+      })
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_chatId", ["chatId"])
+    .index("by_userId", ["userId"]),
 });
