@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { generateQuiz, type QuizState } from "@/actions/generate-quiz";
 import { useActionState, useState, useEffect } from "react";
 import QuizContainer from "./quiz/QuizContainer";
+import { useUser } from "@clerk/nextjs";
 
 interface QuizDrawerProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function QuizDrawer({
   widthClass = "w-3/4 sm:max-w-sm",
   chatId,
 }: QuizDrawerProps) {
+  const { user } = useUser();
   const [state, formAction, isPending] = useActionState(
     generateQuiz,
     initialState
@@ -154,10 +156,11 @@ export function QuizDrawer({
               </div>
 
               <input type="hidden" name="chatId" value={chatId} />
+              <input type="hidden" name="userId" value={user?.id} />
 
               <Button
                 type="submit"
-                disabled={isPending}
+                disabled={isPending || !user}
                 className="w-full bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 text-white hover:from-purple-600 hover:via-blue-600 hover:to-cyan-600 transition-all duration-200 disabled:opacity-50"
               >
                 {isPending ? (
@@ -165,6 +168,8 @@ export function QuizDrawer({
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Generating Quiz...
                   </>
+                ) : !user ? (
+                  "Please sign in to generate quiz"
                 ) : (
                   "Generate Quiz"
                 )}

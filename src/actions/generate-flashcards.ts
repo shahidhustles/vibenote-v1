@@ -8,7 +8,6 @@ import { createFlashcardReminders } from "@/lib/google-calendar";
 import { z } from "zod";
 import { api } from "../../convex/_generated/api";
 
-
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 type ActionState = {
@@ -59,6 +58,25 @@ export const generateFlashcards = async (
       )
       .join("\n");
 
+    // Fetch user's videos to get transcript context
+    const userVideos = await convex.query(api.videos.getUserVideos, {
+      userId: user.id,
+    });
+    const videoTranscripts = userVideos
+      .filter((video) => video.status === "completed" && video.transcript)
+      .map((video) => `Topic: ${video.topic}\nTranscript: ${video.transcript}`)
+      .join("\n\n");
+
+    const contextContent = `Chat Context:
+${chatContext}
+
+${
+  videoTranscripts
+    ? `Video Transcripts Context:
+${videoTranscripts}`
+    : ""
+}`;
+
     // Get chat title
     const chat = await convex.query(api.chat.getSessionByChatId, {
       chatId,
@@ -71,16 +89,15 @@ export const generateFlashcards = async (
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     });
 
-    const prompt = `Based on the following chat conversation, generate ${numFlashcards} educational flashcards. ${
+    const prompt = `Based on the following chat conversation and video transcripts, generate ${numFlashcards} educational flashcards. ${
       enableHints
         ? "Include helpful hints for each flashcard."
         : "Do not include hints."
     }
 
-Chat conversation:
-${chatContext}
+${contextContent}
 
-Create flashcards that test understanding of the key concepts discussed. Make the questions clear and the answers concise but informative.`;
+Create flashcards that test understanding of the key concepts discussed in the conversation and covered in the video transcripts. Make the questions clear and the answers concise but informative. Include video-specific details and concepts when relevant.`;
 
     const { object } = await generateObject({
       model: google("gemini-2.0-flash"),

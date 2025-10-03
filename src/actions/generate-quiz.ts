@@ -43,8 +43,9 @@ export const generateQuiz = async (
     const title = formData.get("title") as string;
     const questions = formData.get("questions") as string;
     const chatId = formData.get("chatId") as string;
+    const userId = formData.get("userId") as string;
 
-    if (!title || !questions || !chatId) {
+    if (!title || !questions || !chatId || !userId) {
       return {
         ...newState,
         state: "error",
@@ -71,18 +72,34 @@ export const generateQuiz = async (
       )
       .join("\n");
 
+    // Fetch user's videos to get transcript context
+    const userVideos = await convex.query(api.videos.getUserVideos, { userId });
+    const videoTranscripts = userVideos
+      .filter((video) => video.status === "completed" && video.transcript)
+      .map((video) => `Topic: ${video.topic}\nTranscript: ${video.transcript}`)
+      .join("\n\n");
+
+    const contextContent = `Chat Context:
+${chatContent}
+
+${
+  videoTranscripts
+    ? `Video Transcripts Context:
+${videoTranscripts}`
+    : ""
+}`;
+
     const google = createGoogleGenerativeAI({
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     });
 
     const { object } = await generateObject({
       model: google("gemini-2.0-flash"),
-      prompt: `Based on the following chat conversation, generate a quiz titled "${title}" with ${questions} questions. 
+      prompt: `Based on the following chat conversation and video transcripts, generate a quiz titled "${title}" with ${questions} questions. 
       
-      Chat Context:
-      ${chatContent}
+      ${contextContent}
       
-      Create multiple choice questions based on the key concepts, facts, and learning points discussed in this conversation. Make sure the questions test understanding and knowledge retention of the main topics covered.`,
+      Create multiple choice questions based on the key concepts, facts, and learning points discussed in the conversation and covered in the video transcripts. Make sure the questions test understanding and knowledge retention of the main topics from both sources. Include video-specific details and concepts when relevant.`,
 
       schema: z.object({
         quiz: z
