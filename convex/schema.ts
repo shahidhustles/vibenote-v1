@@ -60,4 +60,26 @@ export default defineSchema({
   })
     .index("by_chatId", ["chatId"])
     .index("by_userId", ["userId"]),
+
+  // Videos table for storing AI-generated educational videos
+  videos: defineTable({
+    videoId: v.string(), // Unique identifier for the video
+    userId: v.string(), // Clerk userId for access control
+    topic: v.string(), // Video topic/subject
+    videoUrl: v.optional(v.string()), // Cloudinary video URL
+    thumbnailUrl: v.optional(v.string()), // Video thumbnail URL
+    audioUrl: v.optional(v.string()), // Audio track URL
+    explanationPoints: v.optional(v.array(v.string())), // Key points covered
+    transcript: v.optional(v.string()), // Video transcript
+    status: v.union(
+      v.literal("generating"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    errorMessage: v.optional(v.string()), // Error message if failed
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_videoId", ["videoId"])
+    .index("by_status", ["status"]),
 });
