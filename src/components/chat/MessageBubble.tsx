@@ -25,8 +25,8 @@ function preprocessMath(text: string): string {
   );
 }
 
-// Helper function to detect and render Cloudinary URLs in text
-function renderTextWithImages(text: string): React.ReactNode {
+// Helper function to detect and render Cloudinary URLs (images and videos) in text
+function renderTextWithMedia(text: string): React.ReactNode {
   // Regex to match Cloudinary URLs on their own line
   const cloudinaryRegex = /^https:\/\/res\.cloudinary\.com\/[^\s]+$/gm;
 
@@ -137,21 +137,40 @@ function renderTextWithImages(text: string): React.ReactNode {
       }
     }
 
-    // Add the image
-    parts.push(
-      <div key={`image-${match.index}`} className="my-4">
-        <div className="relative rounded-lg overflow-hidden border border-pink-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-          <Image
+    // Check if this is a video URL (contains .mp4, .webm, or video/ in the path)
+    const isVideoUrl = /\.(mp4|webm|mov)(\?|$)|\/video\//.test(match[0]);
+
+    if (isVideoUrl) {
+      // Add the video player - simple like library page
+      parts.push(
+        <div key={`video-${match.index}`} className="my-4">
+          <video
             src={match[0]}
-            alt="Retrieved from documents"
-            width={600}
-            height={400}
-            className="w-full h-auto object-contain"
-            unoptimized
-          />
+            controls
+            className="w-full h-auto rounded-lg"
+            preload="metadata"
+          >
+            Your browser does not support the video tag.
+          </video>
         </div>
-      </div>
-    );
+      );
+    } else {
+      // Add the image
+      parts.push(
+        <div key={`image-${match.index}`} className="my-4">
+          <div className="relative rounded-lg overflow-hidden border border-pink-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+            <Image
+              src={match[0]}
+              alt="Retrieved from documents"
+              width={600}
+              height={400}
+              className="w-full h-auto object-contain"
+              unoptimized
+            />
+          </div>
+        </div>
+      );
+    }
 
     lastIndex = match.index + match[0].length;
   }
@@ -400,7 +419,7 @@ export function MessageBubble({
                   {isUser ? (
                     <p className="whitespace-pre-wrap">{part.text}</p>
                   ) : part.text.length > 0 ? (
-                    renderTextWithImages(part.text)
+                    renderTextWithMedia(part.text)
                   ) : null}
                 </div>
               );
@@ -434,6 +453,14 @@ export function MessageBubble({
               return (
                 <div key={index} className="mb-3">
                   {renderToolCall(part, "retrieveMorphik", message.id)}
+                </div>
+              );
+
+            // Handle generateVideo tool calls
+            case "tool-generateVideo":
+              return (
+                <div key={index} className="mb-3">
+                  {renderToolCall(part, "generateVideo", message.id)}
                 </div>
               );
 
@@ -690,6 +717,64 @@ function renderToolCall(part: any, toolName: string, messageId?: string) {
               className="text-md font-medium"
             >
               📚 Error: {part.errorText || "Failed to retrieve from library"}
+            </ShiningText>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
+  if (toolName === "generateVideo") {
+    switch (part.state) {
+      case "input-streaming":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(168, 85, 247, 0.7)"
+              className="text-md font-medium"
+            >
+              🎬 Generating video...
+            </ShiningText>
+          </div>
+        );
+      case "input-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(168, 85, 247, 0.7)"
+              className="text-md font-medium"
+            >
+              🎬 Creating video for: &ldquo;
+              {part.input?.topic?.substring(0, 50) || "educational content"}
+              {part.input?.topic?.length > 50 ? "..." : ""}
+              &rdquo;
+            </ShiningText>
+          </div>
+        );
+      case "output-available":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(168, 85, 247, 0.7)"
+              className="text-md font-medium"
+            >
+              🎬 Video generated successfully
+            </ShiningText>
+          </div>
+        );
+      case "output-error":
+        return (
+          <div key={toolCallId} className="text-md">
+            <ShiningText
+              duration="2s"
+              textColor="rgba(239, 68, 68, 0.7)"
+              className="text-md font-medium"
+            >
+              🎬 Error: {part.errorText || "Failed to generate video"}
             </ShiningText>
           </div>
         );

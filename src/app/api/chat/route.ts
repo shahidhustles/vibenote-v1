@@ -25,6 +25,7 @@ import {
   extractContextText,
   extractImageUrls,
 } from "@/actions/retrieve-morphik";
+import { callManimAPI } from "@/actions/generate-video-action";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -143,6 +144,58 @@ Examples of whiteboard use cases:
 - Programming: "Draw a flowchart of your algorithm on the whiteboard"
 - Concepts: "Create a mind map on the whiteboard to visualize the connections"
 - Problem-solving: "Sketch out the problem on the whiteboard so we can work through it together"
+
+VIDEO GENERATION FOR VISUAL EXPLANATIONS:
+You have the ability to generate educational videos to help explain concepts visually!
+
+When to generate videos:
+- User explicitly asks for a video explanation or animation
+- Complex concepts would benefit from visual animation (physics laws, mathematical concepts, biological processes)
+- Step-by-step processes that are easier to understand in motion
+- Abstract concepts that need visual representation
+
+CRITICAL VIDEO GENERATION RULES:
+⚠️ Keep videos SHORT and FOCUSED - maximum 30-40 seconds of content
+⚠️ Use VERY SPECIFIC, NARROW topics - not broad subjects
+⚠️ One concept per video - don't try to explain multiple related ideas
+
+GOOD video topics (specific, focused, 30-40 sec):
+✅ "Pythagorean Theorem proof"
+✅ "Newton's First Law of Motion"
+✅ "How photosynthesis works"
+✅ "Quadratic formula derivation"
+✅ "Mitosis cell division process"
+✅ "Basic sine wave properties"
+
+BAD video topics (too broad, would exceed 40 seconds):
+❌ "All of trigonometry" (too broad)
+❌ "Complete guide to calculus" (too long)
+❌ "Everything about physics" (way too broad)
+❌ "How to learn programming" (not specific enough)
+
+When generating a video:
+1. Use the generateVideo tool with a CONCISE, FOCUSED topic
+2. The topic should be explainable in 30-40 seconds maximum
+3. After calling the tool, WAIT for it to complete and return the video URL
+4. Once you receive the video URL, IMMEDIATELY include it in your response text
+5. Place the video URL on its own new line in your response (the frontend will automatically render it as a video player)
+6. You can supplement the video with text explanations
+
+Example usage:
+User: "Can you explain Newton's First Law?"
+Response: "I'll generate a video to help visualize Newton's First Law of Motion! [calls generateVideo with topic: "Newton's First Law of Motion"]
+
+Here's your educational video on Newton's First Law:
+
+https://res.cloudinary.com/your-cloud/video/upload/v123/newtons-first-law.mp4
+
+Newton's First Law states that an object at rest stays at rest..."
+
+CRITICAL VIDEO URL HANDLING:
+- When the generateVideo tool returns a video URL, you MUST include it directly in your response
+- Place each video URL on its own new line in your response
+- Reference the video naturally in your explanation (e.g., "Here's the video:" or "Watch this explanation:")
+- The video URL will be automatically rendered as a video player in the chat
 
 IMPORTANT - Knowledge Base Guidelines:
 - ALWAYS check your knowledge base before answering questions about the user
@@ -424,6 +477,115 @@ Remember: Library Mode allows you to provide personalized, accurate explanations
               }),
             }
           : {}),
+        generateVideo: tool({
+          description: `Generate an educational video about a specific topic. Use this tool when the user asks to create or generate a video, or when a visual animated explanation would significantly enhance learning. IMPORTANT: Only generate videos for focused, specific topics that can be explained in 30-40 seconds. Keep topics concise and well-defined.`,
+          inputSchema: z.object({
+            topic: z
+              .string()
+              .describe(
+                "A concise, focused topic for the video (max 30-40 second explanation). Examples: 'Pythagorean Theorem', 'Newton's First Law', 'Mitosis Process'"
+              ),
+          }),
+          execute: async ({ topic }) => {
+            console.log(
+              "[API Route - generateVideo] Tool called with topic:",
+              topic
+            );
+            console.log("[API Route - generateVideo] ChatId:", chatId);
+
+            // Generate unique video ID
+            const videoId = nanoid();
+
+            try {
+              // Create video entry in Convex with "generating" status
+              const convexClient = new ConvexHttpClient(
+                process.env.NEXT_PUBLIC_CONVEX_URL!
+              );
+
+              await convexClient.mutation(api.videos.createVideo, {
+                videoId,
+                userId: userId,
+                topic: topic.trim(),
+              });
+
+              // Call the Manim API to generate the video
+              const response = await callManimAPI(topic.trim());
+
+              if (!response.success) {
+                // Update video status to failed
+                await convexClient.mutation(api.videos.updateVideoStatus, {
+                  videoId,
+                  status: "failed",
+                  errorMessage: response.error || "Failed to generate video",
+                });
+
+                return {
+                  success: false,
+                  error: response.error || "Failed to generate video",
+                  videoId,
+                };
+              }
+
+              // Update video with completed data
+              await convexClient.mutation(api.videos.updateVideoStatus, {
+                videoId,
+                status: "completed",
+                videoUrl: response.video_url,
+                thumbnailUrl: response.thumbnail_url || response.video_url,
+                audioUrl: response.audio_url,
+                explanationPoints: response.explanation_points,
+                transcript: response.transcript,
+              });
+
+              console.log(
+                "[API Route - generateVideo] Video generated successfully:",
+                {
+                  videoId,
+                  videoUrl: response.video_url,
+                  transcript: response.transcript,
+                }
+              );
+
+              return {
+                success: true,
+                videoId,
+                videoUrl: response.video_url,
+                thumbnailUrl: response.thumbnail_url || response.video_url,
+                transcript: response.transcript,
+                explanationPoints: response.explanation_points,
+                message: `Video generated successfully! Topic: ${topic}`,
+              };
+            } catch (error) {
+              console.error("[API Route - generateVideo] Error:", error);
+
+              // Try to update video status to failed if we have the videoId
+              try {
+                const convexClient = new ConvexHttpClient(
+                  process.env.NEXT_PUBLIC_CONVEX_URL!
+                );
+                await convexClient.mutation(api.videos.updateVideoStatus, {
+                  videoId,
+                  status: "failed",
+                  errorMessage:
+                    error instanceof Error
+                      ? error.message
+                      : "Unknown error occurred",
+                });
+              } catch (convexError) {
+                console.error(
+                  "[API Route - generateVideo] Failed to update video status:",
+                  convexError
+                );
+              }
+
+              return {
+                success: false,
+                error: `Failed to generate video: ${error instanceof Error ? error.message : "Unknown error"}`,
+                videoId,
+              };
+            }
+          },
+        }),
       },
       onFinish: async (result) => {
         console.log("[API Route] onFinish called");
@@ -511,10 +673,44 @@ Generate only the title, no quotes or additional text. Keep it under 25 characte
             }
           }
 
-          // Add assistant message to existing chat (no more morphik metadata)
+          // Extract video metadata from tool results if generateVideo was called
+          let videoMetadata = undefined;
+          if (result.toolResults && result.toolResults.length > 0) {
+            for (const toolResult of result.toolResults) {
+              if (toolResult && toolResult.toolName === "generateVideo") {
+                const videoResult = toolResult.output as {
+                  success?: boolean;
+                  videoId?: string;
+                  videoUrl?: string;
+                  thumbnailUrl?: string;
+                  transcript?: string;
+                };
+                if (
+                  videoResult &&
+                  videoResult.success &&
+                  videoResult.videoUrl
+                ) {
+                  videoMetadata = {
+                    videoId: videoResult.videoId,
+                    videoUrl: videoResult.videoUrl,
+                    thumbnailUrl: videoResult.thumbnailUrl,
+                    transcript: videoResult.transcript,
+                  };
+                  console.log(
+                    "[API Route] Video metadata extracted:",
+                    videoMetadata
+                  );
+                  break;
+                }
+              }
+            }
+          }
+
+          // Add assistant message to existing chat with video metadata
           const metadataToSave = {
             model: "gemini-2.0-flash-exp",
             tokens: result.usage?.totalTokens,
+            ...(videoMetadata ? { video: videoMetadata } : {}),
           };
 
           console.log("[API Route] Saving metadata to Convex:", metadataToSave);

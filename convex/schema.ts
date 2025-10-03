@@ -25,6 +25,14 @@ export default defineSchema({
         tokens: v.optional(v.number()),
         model: v.optional(v.string()),
         duration: v.optional(v.number()),
+        video: v.optional(
+          v.object({
+            videoId: v.optional(v.string()),
+            videoUrl: v.optional(v.string()),
+            thumbnailUrl: v.optional(v.string()),
+            transcript: v.optional(v.string()),
+          })
+        ),
       })
     ),
   }).index("by_chatId", ["chatId"]),
